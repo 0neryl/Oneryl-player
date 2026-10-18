@@ -3,8 +3,8 @@
 # first result and checks that the media session reports it as playing. Then
 # tries the same with YouTube Music, which may refuse a data-centre IP, so a
 # failure there is only a warning. Finally the SoundCloud track, liked along
-# the way, must play from the Library with the network off. Leaves screenshots
-# and logcat.txt behind.
+# the way, must play from the Library with the network off, and the YouTube
+# sign-in page must open. Leaves screenshots and logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -161,6 +161,17 @@ elif play_first_result "SoundCloud" "lofi"; then
   adb shell cmd connectivity airplane-mode disable
   adb shell svc wifi enable
   adb shell svc data enable
+
+  # Nobody signs in here, but Google's sign-in page must at least open.
+  sleep 10
+  if tap "Sign in"; then
+    sleep 20
+    adb exec-out screencap -p > screenshot-sign-in.png
+    adb shell input keyevent KEYCODE_BACK
+    sleep 2
+  else
+    echo "::warning::The YouTube sign-in button was not found"
+  fi
 else
   adb exec-out screencap -p > screenshot-failed.png
   echo "::error::The SoundCloud track did not start playing"

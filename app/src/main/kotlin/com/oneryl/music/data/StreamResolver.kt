@@ -46,9 +46,9 @@ fun interface YoutubeFallback {
     /**
      * Blocks on the network. [refusedClients] names the clients whose streams
      * googlevideo.com refused for this track a moment ago, so another one is
-     * worth a try.
+     * worth a try; [ageRestricted] says YouTube wants a signed-in adult.
      */
-    fun resolve(videoId: String, refusedClients: Set<String>): ResolvedStream
+    fun resolve(videoId: String, refusedClients: Set<String>, ageRestricted: Boolean): ResolvedStream
 }
 
 /** Why a track cannot be played, so the app can say it in the user's language. */
@@ -144,7 +144,7 @@ class StreamResolver(
         var earlierFallbackError: Exception? = null
         if (now() < preferFallbackUntil || NEWPIPE_CLIENT in refused) {
             try {
-                return fallback.resolve(track.id, refusedElsewhere)
+                return fallback.resolve(track.id, refusedElsewhere, ageRestricted = false)
             } catch (e: Exception) {
                 earlierFallbackError = e
                 // It is refused here too, so it stops costing every track a detour.
@@ -157,7 +157,11 @@ class StreamResolver(
             if (newPipeError.reason !in RETRY_ELSEWHERE) throw newPipeError
             try {
                 if (earlierFallbackError != null) throw earlierFallbackError
-                fallback.resolve(track.id, refusedElsewhere).also { preferFallbackUntil = now() + PREFER_FALLBACK_MS }
+                val ageRestricted = newPipeError.reason == UnavailableReason.AGE_RESTRICTED
+                fallback.resolve(track.id, refusedElsewhere, ageRestricted).also {
+                    // An age check is about the track, not the network: NewPipe keeps leading.
+                    if (!ageRestricted) preferFallbackUntil = now() + PREFER_FALLBACK_MS
+                }
             } catch (fallbackError: Exception) {
                 throw StreamUnavailableException(
                     newPipeError.reason,
@@ -204,6 +208,8 @@ class StreamResolver(
         private const val PREFER_FALLBACK_MS = 30 * 60 * 1000L
         private const val REFUSAL_MEMORY_MS = 5 * 60 * 1000L
         private const val MAX_SAID_CHARS = 60
+        /** How YouTube words "sign in to prove you are an adult", in English and Russian. */
+        private val AGE_CHECKS = listOf("confirm your age", "inappropriate for some users", "подтвердить свой возраст")
         private val QUOTED = Regex("\"([^\"]+)\"\\s*$")
 
         /** Refusals another YouTube client may get past; premium or region locks it will not. */
@@ -237,7 +243,12 @@ class StreamResolver(
                 .filter { it.format == MediaFormat.M4A || it.format == MediaFormat.MP3 }
                 .minByOrNull { if (it.format == MediaFormat.M4A) 0 else 1 }
 
-        internal fun reasonFor(error: Exception): UnavailableReason = when (error) {
+        internal fun reasonFor(error: Exception): UnavailableReason = when {
+            AGE_CHECKS.any { error.message.orEmpty().contains(it, ignoreCase = true) } -> UnavailableReason.AGE_RESTRICTED
+            else -> reasonForType(error)
+        }
+
+        private fun reasonForType(error: Exception): UnavailableReason = when (error) {
             is AgeRestrictedContentException -> UnavailableReason.AGE_RESTRICTED
             is YoutubeMusicPremiumContentException, is PaidContentException, is SoundCloudGoPlusContentException ->
                 UnavailableReason.PREMIUM_ONLY

@@ -23,6 +23,18 @@
     <string name="library_recent">History</string>
     <string name="library_empty_liked">Tap ♡ on a track to keep it here and listen without a network</string>
     <string name="offline_count">%d offline</string>
+
+    <string name="account_youtube">YouTube account</string>
+    <string name="account_why">Sign in to play 18+ tracks and be refused less often over a VPN</string>
+    <string name="account_signed_in">Signed in to YouTube</string>
+    <string name="account_in_use">Used only when YouTube refuses to play without it</string>
+    <string name="account_sign_in">Sign in</string>
+    <string name="account_sign_in_title">Sign in to YouTube</string>
+    <string name="account_sign_out">Sign out</string>
+    <string name="account_sign_out_title">Sign out of YouTube?</string>
+    <string name="account_sign_out_text">The sign-in data is deleted from this phone, and 18+ tracks stop playing.</string>
+    <string name="account_sign_in_failed">Couldn\'t sign in. Try again.</string>
+    <string name="cancel">Cancel</string>
     <string name="offline_ready">Available offline</string>
     <string name="offline_downloading">Downloading</string>
     <string name="library_empty_recent">Tracks you play show up here</string>
@@ -51,10 +63,12 @@
     <string name="remove_from_queue">Remove from queue</string>
 
     <string name="error_not_available">This track is not available</string>
-    <string name="error_age_restricted">This track is age-restricted</string>
+    <string name="error_age_restricted">This track is age-restricted. Sign in to YouTube in Library to play it</string>
+    <string name="error_age_restricted_signed_in">This track is age-restricted, and YouTube did not play it for this account</string>
     <string name="error_premium">Only available with a subscription</string>
     <string name="error_region">Not available in your region</string>
     <string name="error_blocked">The service refused the request, try again later</string>
+    <string name="error_blocked_sign_in">The service refused the request. Signing in to YouTube in Library may help</string>
     <string name="error_no_audio">This track has no audio the player can use</string>
     <string name="error_network">No connection</string>
     <string name="error_unknown">Couldn\'t play the track</string>

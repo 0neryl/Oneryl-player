@@ -13,6 +13,7 @@ class StreamResolverTest {
     private val newPipeCalls = mutableListOf<String>()
     private val fallbackCalls = mutableListOf<String>()
     private val refusedSeen = mutableListOf<Set<String>>()
+    private val ageChecksSeen = mutableListOf<Boolean>()
 
     private fun stream(client: String, fetch: FetchStyle) =
         ResolvedStream("https://example.com/$client", false, 100, emptyMap(), clock + 60_000, fetch, client = client)
@@ -21,7 +22,12 @@ class StreamResolverTest {
         newPipe: (String) -> ResolvedStream = { stream("NewPipe", FetchStyle.NEWPIPE) },
         fallback: (String) -> ResolvedStream = { stream("ITX", FetchStyle.RANGED_GET) },
     ) = StreamResolver(
-        youtubeFallback = { id, refused -> fallbackCalls += id; refusedSeen += refused; fallback(id) },
+        youtubeFallback = { id, refused, ageRestricted ->
+            fallbackCalls += id
+            refusedSeen += refused
+            ageChecksSeen += ageRestricted
+            fallback(id)
+        },
         now = { clock },
         newPipeYoutube = { url -> newPipeCalls += url; newPipe(url) },
     )
@@ -121,5 +127,31 @@ class StreamResolverTest {
         val error = ContentNotAvailableException("Got error UNPLAYABLE: \"This content isn't available, try again later.\"")
         assertEquals("ContentNotAvailable «This content isn't available, try again later.»", StreamResolver.describe(error))
         assertEquals("SignInConfirmNotBot", StreamResolver.describe(SignInConfirmNotBotException("got error LOGIN_REQUIRED: \"a bot\"")))
+    }
+
+    @Test
+    fun anAgeCheckGoesToTheFallbackAsOne() {
+        val resolver = resolver(newPipe = {
+            throw ContentNotAvailableException("Got error LOGIN_REQUIRED: \"Sign in to confirm your age\"")
+        })
+        assertEquals("ITX", resolver.resolve(uri("a")).client)
+        assertEquals(listOf(true), ageChecksSeen)
+
+        resolver.resolve(uri("b"))
+        assertEquals("an age check says nothing about the network, so NewPipe still leads", 2, newPipeCalls.size)
+    }
+
+    @Test
+    fun anAgeCheckTheFallbackCannotPassIsReportedAsOne() {
+        val resolver = resolver(
+            newPipe = { throw ContentNotAvailableException("Got error LOGIN_REQUIRED: \"Sign in to confirm your age\"") },
+            fallback = { throw StreamUnavailableException(UnavailableReason.NOT_AVAILABLE, "no") },
+        )
+        try {
+            resolver.resolve(uri("a"))
+            fail("expected a refusal")
+        } catch (e: StreamUnavailableException) {
+            assertEquals(UnavailableReason.AGE_RESTRICTED, e.reason)
+        }
     }
 }

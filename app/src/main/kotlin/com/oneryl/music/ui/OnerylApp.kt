@@ -33,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -49,8 +50,10 @@ import com.oneryl.music.R
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.Track
+import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.playback.PlayerConnection
+import com.oneryl.music.ui.account.YoutubeLoginScreen
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.TrackActions
 import com.oneryl.music.ui.components.TrackUi
@@ -62,6 +65,7 @@ import com.oneryl.music.ui.player.PlayerScreen
 import com.oneryl.music.ui.search.SearchScreen
 import com.oneryl.music.ui.search.SearchViewModel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
     HOME(R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
@@ -75,6 +79,7 @@ fun OnerylApp(
     catalog: MusicCatalog,
     library: LibraryStore,
     offline: StateFlow<Map<String, OfflineState>>,
+    account: YoutubeAccount,
     connection: PlayerConnection,
 ) {
     val player by connection.state.collectAsStateWithLifecycle()
@@ -82,6 +87,9 @@ fun OnerylApp(
     val offlineStates by offline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
+    var signingIn by rememberSaveable { mutableStateOf(false) }
+    val signInFailed = stringResource(R.string.account_sign_in_failed)
+    val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val tabStates = rememberSaveableStateHolder()
 
@@ -107,7 +115,8 @@ fun OnerylApp(
     LaunchedEffect(current == null) {
         if (current == null) playerOpen = false
     }
-    BackHandler(enabled = playerOpen) { playerOpen = false }
+    BackHandler(enabled = signingIn) { signingIn = false }
+    BackHandler(enabled = playerOpen && !signingIn) { playerOpen = false }
     BackHandler(enabled = !playerOpen && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
@@ -158,9 +167,11 @@ fun OnerylApp(
                             Tab.SEARCH -> SearchScreen(searchViewModel, padding)
                             Tab.LIBRARY -> LibraryScreen(
                                 library = library,
+                                account = account,
                                 contentPadding = padding,
                                 onPlay = connection::play,
                                 onShuffle = connection::shuffleAll,
+                                onSignIn = { signingIn = true },
                             )
                         }
                     }
@@ -178,6 +189,20 @@ fun OnerylApp(
                     isLiked = currentLiked,
                     onToggleLike = toggleCurrentLike,
                     onClose = { playerOpen = false },
+                )
+            }
+
+            if (signingIn) {
+                YoutubeLoginScreen(
+                    onSignedIn = { session ->
+                        account.signIn(session)
+                        signingIn = false
+                    },
+                    onFailed = {
+                        signingIn = false
+                        scope.launch { snackbar.showSnackbar(signInFailed) }
+                    },
+                    onClose = { signingIn = false },
                 )
             }
         }

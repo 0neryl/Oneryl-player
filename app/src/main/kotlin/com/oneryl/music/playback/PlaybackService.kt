@@ -142,12 +142,14 @@ class PlaybackService : MediaSessionService() {
 
     private fun messageFor(error: PlaybackException): String {
         val unavailable = error.causes().filterIsInstance<StreamUnavailableException>().firstOrNull()
+        val signedIn = app.account.session.value != null
         val text = when (unavailable?.reason) {
             UnavailableReason.NOT_AVAILABLE -> R.string.error_not_available
-            UnavailableReason.AGE_RESTRICTED -> R.string.error_age_restricted
+            UnavailableReason.AGE_RESTRICTED ->
+                if (signedIn) R.string.error_age_restricted_signed_in else R.string.error_age_restricted
             UnavailableReason.PREMIUM_ONLY -> R.string.error_premium
             UnavailableReason.REGION_LOCKED -> R.string.error_region
-            UnavailableReason.BLOCKED_BY_SERVICE -> R.string.error_blocked
+            UnavailableReason.BLOCKED_BY_SERVICE -> if (signedIn) R.string.error_blocked else R.string.error_blocked_sign_in
             UnavailableReason.NO_AUDIO -> R.string.error_no_audio
             UnavailableReason.UNKNOWN -> R.string.error_unknown
             null -> when (error.errorCode) {

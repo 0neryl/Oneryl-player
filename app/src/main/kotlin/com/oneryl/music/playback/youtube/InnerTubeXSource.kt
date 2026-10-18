@@ -18,13 +18,18 @@ import com.metrolist.innertubex.extraction.YtConfigParser
 import com.metrolist.innertubex.extraction.YtConfigParserImpl
 import com.metrolist.innertubex.extraction.generateClientPlaybackNonce
 import com.metrolist.innertubex.extraction.strategy.PoTokenProviderKind
+import com.metrolist.innertubex.models.YouTubeClient
+import com.metrolist.innertubex.models.response.AccountMenuResponse
 import com.oneryl.music.data.FetchStyle
 import com.oneryl.music.data.GoogleVideo
 import com.oneryl.music.data.ResolvedStream
 import com.oneryl.music.data.StreamUnavailableException
 import com.oneryl.music.data.UnavailableReason
+import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.data.YoutubeFallback
+import com.oneryl.music.data.YoutubeSession
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.compression.ContentEncoding
@@ -45,9 +50,18 @@ import okhttp3.OkHttpClient
  * YouTube refuses NewPipe's client, which happens from many VPN addresses.
  *
  * Like a browser, it keeps one visitor ID across launches instead of asking
- * for a new one every time.
+ * for a new one every time. With a signed-in [account], InnerTubeX still asks
+ * without it first and brings the account in when YouTube refuses, except for
+ * age-restricted tracks, which only play signed in.
  */
-class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback {
+class InnerTubeXSource(
+    context: Context,
+    okHttp: OkHttpClient,
+    private val account: YoutubeAccount,
+) : YoutubeFallback {
+
+    /** The account session [innerTube] carries now; guarded by `this`. */
+    private var appliedSession: YoutubeSession? = null
 
     private val preferences = context.getSharedPreferences("innertubex_session", Context.MODE_PRIVATE)
 
@@ -121,7 +135,12 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
     }
 
     /** Blocks on the network; the player calls it from a loader thread. */
-    override fun resolve(videoId: String, refusedClients: Set<String>): ResolvedStream = runBlocking(Dispatchers.IO) {
+    override fun resolve(
+        videoId: String,
+        refusedClients: Set<String>,
+        ageRestricted: Boolean,
+    ): ResolvedStream = runBlocking(Dispatchers.IO) {
+        applyAccount()
         restoreVisitorData()
         // A refused stream can mean the cipher signed it wrong; if newer cipher
         // rules arrive, the refused clients deserve another try.
@@ -129,7 +148,7 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
         val stream = try {
             extractor.extract(
                 videoId = videoId,
-                hints = ContentHints().withStreamCapabilities(
+                hints = ContentHints(isAgeRestricted = if (ageRestricted) true else null).withStreamCapabilities(
                     allowHls = false,
                     allowSabr = false,
                     allowBoundedRange = true,
@@ -160,6 +179,47 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
             chunkBytes = stream.rangeChunkSizeBytes.takeIf { it > 0 } ?: GoogleVideo.CHUNK_BYTES,
             client = stream.clientName,
         )
+    }
+
+    /** Signs [innerTube] in or out to match [account]. */
+    private fun applyAccount() {
+        val session = account.session.value
+        synchronized(this) {
+            if (session == appliedSession) return
+            appliedSession = session
+            innerTube.cookie = session?.cookie
+            innerTube.dataSyncId = session?.dataSyncId
+            innerTube.authUser = session?.authUser ?: "0"
+            // A signed-in session comes with its own visitor ID; signed out, the saved one returns.
+            innerTube.visitorData = session?.visitorData
+        }
+    }
+
+    /** Adds the account's name and email to [session], if YouTube tells them. */
+    suspend fun describe(session: YoutubeSession): YoutubeSession {
+        val signedIn = InnerTube(httpClient, logger = logger).apply {
+            cookie = session.cookie
+            visitorData = session.visitorData
+            dataSyncId = session.dataSyncId
+            authUser = session.authUser
+        }
+        return try {
+            val menu = signedIn.accountMenu(YouTubeClient.WEB_REMIX).body<AccountMenuResponse>()
+            val header = menu.actions.firstNotNullOfOrNull { action ->
+                val popup = action.openPopupAction?.popup
+                (popup?.multiPageMenuRenderer ?: popup?.popupContent?.multiPageMenuRenderer)
+                    ?.header?.activeAccountHeaderRenderer
+            }
+            val info = header?.toAccountInfo()
+            session.copy(name = info?.name?.takeIf { it != "Unknown" }, email = info?.email)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "No account name: ${e.javaClass.simpleName}")
+            session
+        } finally {
+            signedIn.close()
+        }
     }
 
     /** Reuses the saved visitor ID, or asks YouTube for one and saves it. */

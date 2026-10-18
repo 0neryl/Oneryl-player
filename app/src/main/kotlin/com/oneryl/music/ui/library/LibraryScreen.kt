@@ -10,15 +10,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,11 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oneryl.music.R
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.Track
+import com.oneryl.music.data.YoutubeAccount
+import com.oneryl.music.data.YoutubeSession
 import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
@@ -42,11 +51,15 @@ import com.oneryl.music.ui.components.TrackRow
 @Composable
 fun LibraryScreen(
     library: LibraryStore,
+    account: YoutubeAccount,
     contentPadding: PaddingValues,
     onPlay: (List<Track>, Int) -> Unit,
     onShuffle: (List<Track>) -> Unit,
+    onSignIn: () -> Unit,
 ) {
     val data by library.state.collectAsStateWithLifecycle()
+    val session by account.session.collectAsStateWithLifecycle()
+    var confirmSignOut by rememberSaveable { mutableStateOf(false) }
     var showHistory by rememberSaveable { mutableStateOf(false) }
     val tracks = if (showHistory) data.recent else data.liked
     val offline = LocalTrackUi.current.offline
@@ -54,6 +67,7 @@ fun LibraryScreen(
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item { ScreenTitle(stringResource(R.string.tab_library)) }
+        item { AccountRow(session, onSignIn = onSignIn, onSignOut = { confirmSignOut = true }) }
         item {
             Row(
                 Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -108,6 +122,64 @@ fun LibraryScreen(
                 }
             }
             itemsIndexed(tracks, key = { _, track -> track.key }) { index, _ -> TrackRow(tracks, index) }
+        }
+    }
+
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text(stringResource(R.string.account_sign_out_title)) },
+            text = { Text(stringResource(R.string.account_sign_out_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSignOut = false
+                    account.signOut()
+                }) { Text(stringResource(R.string.account_sign_out)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+}
+
+/** The optional YouTube account: why to sign in, or whose account is in use. */
+@Composable
+private fun AccountRow(session: YoutubeSession?, onSignIn: () -> Unit, onSignOut: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.AccountCircle,
+            contentDescription = null,
+            tint = if (session != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(40.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                when {
+                    session == null -> stringResource(R.string.account_youtube)
+                    else -> session.name ?: stringResource(R.string.account_signed_in)
+                },
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (session == null) stringResource(R.string.account_why) else stringResource(R.string.account_in_use),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        if (session == null) {
+            FilledTonalButton(onClick = onSignIn) { Text(stringResource(R.string.account_sign_in)) }
+        } else {
+            TextButton(onClick = onSignOut) { Text(stringResource(R.string.account_sign_out)) }
         }
     }
 }

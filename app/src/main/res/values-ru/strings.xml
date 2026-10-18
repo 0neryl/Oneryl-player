@@ -19,6 +19,18 @@
     <string name="library_recent">История</string>
     <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда и слушать без сети</string>
     <string name="offline_count">без сети: %d</string>
+
+    <string name="account_youtube">Аккаунт YouTube</string>
+    <string name="account_why">Войдите, чтобы слушать треки 18+ и реже получать отказы с VPN</string>
+    <string name="account_signed_in">Вы вошли в YouTube</string>
+    <string name="account_in_use">Используется, только когда YouTube отказывает без него</string>
+    <string name="account_sign_in">Войти</string>
+    <string name="account_sign_in_title">Вход в YouTube</string>
+    <string name="account_sign_out">Выйти</string>
+    <string name="account_sign_out_title">Выйти из YouTube?</string>
+    <string name="account_sign_out_text">Данные входа удалятся с телефона, а треки 18+ перестанут играть.</string>
+    <string name="account_sign_in_failed">Не удалось войти. Попробуйте ещё раз.</string>
+    <string name="cancel">Отмена</string>
     <string name="offline_ready">Доступен без сети</string>
     <string name="offline_downloading">Скачивается</string>
     <string name="library_empty_recent">Здесь появятся треки, которые вы слушали</string>
@@ -49,10 +61,12 @@
     <string name="remove_from_queue">Убрать из очереди</string>
 
     <string name="error_not_available">Этот трек недоступен</string>
-    <string name="error_age_restricted">У трека возрастное ограничение</string>
+    <string name="error_age_restricted">У трека возрастное ограничение. Чтобы его слушать, войдите в YouTube в Библиотеке</string>
+    <string name="error_age_restricted_signed_in">У трека возрастное ограничение, и YouTube не включил его для этого аккаунта</string>
     <string name="error_premium">Доступно только по подписке</string>
     <string name="error_region">Недоступно в вашем регионе</string>
     <string name="error_blocked">Сервис отклонил запрос, попробуйте позже</string>
+    <string name="error_blocked_sign_in">Сервис отклонил запрос. Может помочь вход в YouTube в Библиотеке</string>
     <string name="error_no_audio">У трека нет звука, который может воспроизвести плеер</string>
     <string name="error_network">Нет подключения к сети</string>
     <string name="error_unknown">Не удалось воспроизвести трек</string>

@@ -14,6 +14,7 @@ import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.NewPipeDownloader
 import com.oneryl.music.data.StreamResolver
+import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.data.YoutubeIpv4Dns
 import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerDataSourceFactory
@@ -44,7 +45,9 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
     }
 
     val catalog = MusicCatalog()
-    val resolver: StreamResolver by lazy { StreamResolver(InnerTubeXSource(this, httpClient)) }
+    val account: YoutubeAccount by lazy { YoutubeAccount(this) { youtube.describe(it) } }
+    private val youtube by lazy { InnerTubeXSource(this, httpClient, account) }
+    val resolver: StreamResolver by lazy { StreamResolver(youtube) }
     val library: LibraryStore by lazy { LibraryStore(File(filesDir, "library.json"), scope) }
 
     private val database by lazy { StandaloneDatabaseProvider(this) }

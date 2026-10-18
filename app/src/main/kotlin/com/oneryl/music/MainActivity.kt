@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OnerylTheme {
-                OnerylApp(app.catalog, app.library, app.offline.states, connection)
+                OnerylApp(app.catalog, app.library, app.offline.states, app.account, connection)
             }
         }
     }
