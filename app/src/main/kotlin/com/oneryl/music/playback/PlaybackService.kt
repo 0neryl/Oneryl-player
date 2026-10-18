@@ -154,7 +154,17 @@ class PlaybackService : MediaSessionService() {
                 else -> R.string.error_unknown
             }
         }
-        return getString(text)
+        return "${getString(text)} (${technicalDetail(error)})"
+    }
+
+    /** A short hint at what failed, so a screenshot of the message is enough to debug it. */
+    private fun technicalDetail(error: PlaybackException): String {
+        val httpCode = error.causes()
+            .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
+            .firstOrNull()?.responseCode
+        if (httpCode != null) return "HTTP $httpCode"
+        val root = error.causes().last()
+        return root.javaClass.simpleName.removeSuffix("Exception").ifEmpty { error.errorCodeName }
     }
 
     private inner class Events : Player.Listener {

@@ -13,7 +13,9 @@ okhttp = "5.5.0"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 desugar = "2.1.5"
-newpipe-extractor = "v0.26.5"
+# The commit NewPipe itself ships: YouTube streams come from the visionOS client only,
+# since the Android one started refusing playback in September 2026.
+newpipe-extractor = "65cabc2ba5216ee871ace4a9963c08bdbf5d5dc0"
 junit = "4.13.2"
 
 [libraries]
