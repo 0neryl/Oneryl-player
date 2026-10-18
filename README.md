@@ -5,6 +5,10 @@ SoundCloud, плеер в шторке и на экране блокировки
 
 Написан с нуля на Kotlin и Jetpack Compose; звук играет Media3 (ExoPlayer),
 треки ищет и находит [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor).
+Если YouTube отказывает NewPipe (так бывает с адресов VPN), звук берётся через
+[InnerTubeX](https://github.com/MetrolistGroup/innertubex) из Metrolist: она
+перебирает другие клиенты YouTube и подтверждает запросы BotGuard-токеном,
+который выпускает скрытый WebView.
 
 ## Установка
 
@@ -17,6 +21,8 @@ SoundCloud, плеер в шторке и на экране блокировки
 - `app/src/main/kotlin/com/oneryl/music/data` — источники: поиск и чарты
   (`MusicCatalog`), получение ссылки на звук (`StreamResolver`), лайки, история
   и очередь в `library.json` (`LibraryStore`).
+- `.../playback/youtube` — запасной путь для YouTube: `InnerTubeXSource` и
+  выпуск PO-токенов в WebView (`PoTokenWebView`, перенесён из Metrolist).
 - `.../playback` — `PlaybackService` (Media3 `MediaSessionService`: фоновое
   воспроизведение, уведомление, кнопка «нравится», восстановление очереди),
   загрузка звука (`PlayerDataSourceFactory`: YouTube кусками по 1 МБ через кэш,
@@ -48,4 +54,5 @@ APK подписывается постоянным ключом из секре
 
 ## Лицензия
 
-GPL-3.0, как и NewPipe Extractor, на котором держится приложение.
+GPL-3.0, как и NewPipe Extractor, InnerTubeX и код PO-токенов из Metrolist и
+NewPipe, на которых держится приложение.

@@ -163,6 +163,8 @@ class PlaybackService : MediaSessionService() {
             .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
             .firstOrNull()?.responseCode
         if (httpCode != null) return "HTTP $httpCode"
+        error.causes().filterIsInstance<StreamUnavailableException>().firstNotNullOfOrNull { it.detail }
+            ?.let { return it }
         val root = error.causes().last()
         return root.javaClass.simpleName.removeSuffix("Exception").ifEmpty { error.errorCodeName }
     }

@@ -111,7 +111,7 @@ fi
 adb shell dumpsys media_session | grep -A 12 "$PACKAGE" | head -n 30
 adb logcat -d -v threadtime > logcat.txt
 PID=$(adb shell pidof "$PACKAGE" | tr -d '\r')
-grep -E "AndroidRuntime|FATAL|ExoPlayer|MediaSession|PlaybackService${PID:+| $PID }" logcat.txt | tail -n 150
+grep -E "AndroidRuntime|FATAL|ExoPlayer|MediaSession|PlaybackService|InnerTubeX|PoToken${PID:+| $PID }" logcat.txt | tail -n 200
 if grep -q "FATAL EXCEPTION" logcat.txt; then
   echo "::error::The app crashed"
   STATUS=1

@@ -14,6 +14,7 @@ import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.NewPipeDownloader
 import com.oneryl.music.data.StreamResolver
 import com.oneryl.music.playback.PlayerDataSourceFactory
+import com.oneryl.music.playback.youtube.InnerTubeXSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +40,7 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
     }
 
     val catalog = MusicCatalog()
-    val resolver = StreamResolver()
+    val resolver: StreamResolver by lazy { StreamResolver(InnerTubeXSource(this, httpClient)) }
     val library: LibraryStore by lazy { LibraryStore(File(filesDir, "library.json"), scope) }
 
     val playerDataSourceFactory: PlayerDataSourceFactory by lazy {

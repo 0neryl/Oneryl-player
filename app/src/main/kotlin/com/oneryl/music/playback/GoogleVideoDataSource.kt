@@ -8,7 +8,9 @@ import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSourceException
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
+import com.oneryl.music.data.FetchStyle
 import com.oneryl.music.data.GoogleVideo
+import com.oneryl.music.data.ResolvedStream
 import com.oneryl.music.data.StreamResolver
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,10 +35,17 @@ class GoogleVideoDataSource(private val client: OkHttpClient) : BaseDataSource(t
     private var chunkEnd = 0L
     private var requestNumber = 0
     private var opened = false
+    private var chunkBytes = GoogleVideo.CHUNK_BYTES
+    private var rangedGet = false
+    private var headers = emptyMap<String, String>()
 
     override fun open(dataSpec: DataSpec): Long {
         this.dataSpec = dataSpec
         transferInitializing(dataSpec)
+        headers = dataSpec.httpRequestHeaders.filterKeys { !it.startsWith(INSTRUCTION_PREFIX) }
+        rangedGet = dataSpec.httpRequestHeaders[FETCH_HEADER] == FetchStyle.RANGED_GET.name
+        chunkBytes = dataSpec.httpRequestHeaders[CHUNK_HEADER]?.toLongOrNull()?.takeIf { it > 0 }
+            ?: GoogleVideo.CHUNK_BYTES
 
         val totalLength = StreamResolver.queryParameter(dataSpec.uri.toString(), "clen")?.toLongOrNull() ?: -1
         position = dataSpec.position
@@ -102,11 +111,12 @@ class GoogleVideoDataSource(private val client: OkHttpClient) : BaseDataSource(t
     }
 
     private fun openChunk(spec: DataSpec) {
-        val last = position + GoogleVideo.CHUNK_BYTES
+        val last = position + chunkBytes
         chunkEnd = if (end == C.LENGTH_UNSET.toLong()) last else minOf(end, last)
 
-        var call = execute(spec, chunkRequest(spec, usePost))
-        if (usePost && call.code in POST_REJECTED) {
+        val post = usePost && !rangedGet
+        var call = execute(spec, chunkRequest(spec, post))
+        if (post && call.code in POST_REJECTED) {
             call.close()
             usePost = false
             call = execute(spec, chunkRequest(spec, usePost = false))
@@ -129,7 +139,7 @@ class GoogleVideoDataSource(private val client: OkHttpClient) : BaseDataSource(t
     private fun chunkRequest(spec: DataSpec, usePost: Boolean): Request {
         val url = spec.uri.toString()
         val builder = Request.Builder()
-            .apply { spec.httpRequestHeaders.forEach { (name, value) -> header(name, value) } }
+            .apply { headers.forEach { (name, value) -> header(name, value) } }
         return if (usePost) {
             builder.url(GoogleVideo.chunkUrl(url, requestNumber++, position, chunkEnd - 1))
                 .post(GoogleVideo.POST_BODY.toRequestBody())
@@ -161,10 +171,19 @@ class GoogleVideoDataSource(private val client: OkHttpClient) : BaseDataSource(t
         override fun createDataSource() = GoogleVideoDataSource(client)
     }
 
-    private companion object {
-        val POST_REJECTED = setOf(400, 405, 411)
+    companion object {
+        private val POST_REJECTED = setOf(400, 405, 411)
+        private const val INSTRUCTION_PREFIX = "X-Oneryl-"
+        private const val FETCH_HEADER = "X-Oneryl-Fetch"
+        private const val CHUNK_HEADER = "X-Oneryl-Chunk"
 
         @Volatile
-        var usePost = true
+        private var usePost = true
+
+        /** Rides along as pseudo-headers through the resolving data source; never sent. */
+        fun instructions(stream: ResolvedStream): Map<String, String> = mapOf(
+            FETCH_HEADER to stream.fetch.name,
+            CHUNK_HEADER to stream.chunkBytes.toString(),
+        )
     }
 }

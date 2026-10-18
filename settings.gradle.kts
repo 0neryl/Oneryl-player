@@ -13,7 +13,10 @@ dependencyResolutionManagement {
         mavenCentral()
         exclusiveContent {
             forRepository { maven("https://jitpack.io") }
-            filter { includeGroup("com.github.TeamNewPipe") }
+            filter {
+                includeGroup("com.github.TeamNewPipe")
+                includeGroup("com.github.MetrolistGroup.innertubex")
+            }
         }
     }
 }

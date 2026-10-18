@@ -132,6 +132,11 @@ dependencies {
     implementation(libs.serialization.json)
 
     implementation(libs.newpipe.extractor)
+    implementation(libs.innertubex)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.client.encoding)
+    implementation(libs.ktor.serialization.json)
     coreLibraryDesugaring(libs.desugar)
 
     testImplementation(libs.junit)

@@ -18,3 +18,18 @@
 
 -dontwarn okhttp3.**
 -dontwarn okio.**
+
+# The PO-token WebView calls these from JavaScript only.
+-keepclassmembers class com.oneryl.music.playback.youtube.PoTokenWebView {
+    @android.webkit.JavascriptInterface public *;
+}
+
+# InnerTubeX talks through Ktor, which finds parts of itself reflectively.
+-keep class io.ktor.** { *; }
+-dontwarn io.ktor.**
+-dontwarn javax.servlet.ServletContainerInitializer
+-dontwarn org.bouncycastle.jsse.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+-dontwarn org.slf4j.impl.StaticLoggerBinder
+-dontwarn java.beans.**

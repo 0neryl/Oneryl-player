@@ -34,7 +34,9 @@ class PlayerDataSourceFactory(
     private val resolve = ResolvingDataSource.Resolver { dataSpec ->
         if (dataSpec.uri.scheme != Track.STREAM_SCHEME) return@Resolver dataSpec
         val stream = resolver.resolve(dataSpec.uri.toString())
-        dataSpec.withUri(stream.url.toUri()).withAdditionalHeaders(stream.headers)
+        dataSpec.withUri(stream.url.toUri()).withAdditionalHeaders(
+            stream.headers + GoogleVideoDataSource.instructions(stream),
+        )
     }
 
     private val youtube = CacheDataSource.Factory()

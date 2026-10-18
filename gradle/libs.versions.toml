@@ -17,6 +17,9 @@ desugar = "2.1.5"
 # since the Android one started refusing playback in September 2026.
 newpipe-extractor = "65cabc2ba5216ee871ace4a9963c08bdbf5d5dc0"
 junit = "4.13.2"
+# YouTube fallback when NewPipe's client is refused; the version Metrolist ships.
+innertubex = "v0.8.4"
+ktor = "3.6.0"
 
 [libraries]
 android-gradle = { module = "com.android.tools.build:gradle", version.ref = "agp" }
@@ -47,6 +50,11 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 desugar = { module = "com.android.tools:desugar_jdk_libs_nio", version.ref = "desugar" }
 newpipe-extractor = { module = "com.github.TeamNewPipe:NewPipeExtractor", version.ref = "newpipe-extractor" }
 junit = { module = "junit:junit", version.ref = "junit" }
+innertubex = { module = "com.github.MetrolistGroup.innertubex:innertubex", version.ref = "innertubex" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-encoding = { module = "io.ktor:ktor-client-encoding", version.ref = "ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
 [plugins]
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

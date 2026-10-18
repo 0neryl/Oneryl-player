@@ -27,7 +27,25 @@ data class ResolvedStream(
     val contentLength: Long,
     val headers: Map<String, String>,
     val expiresAtMillis: Long,
+    val fetch: FetchStyle = FetchStyle.NEWPIPE,
+    val chunkBytes: Long = GoogleVideo.CHUNK_BYTES,
+    val client: String = "NewPipe",
 )
+
+/** How googlevideo.com wants the chunks of a YouTube stream requested. */
+enum class FetchStyle {
+    /** POST with the range in the URL, as NewPipe's player does. */
+    NEWPIPE,
+
+    /** Plain GET with a Range header, as InnerTubeX streams expect. */
+    RANGED_GET,
+}
+
+/** A second way to get YouTube audio, tried when YouTube refuses NewPipe's client. */
+fun interface YoutubeFallback {
+    /** Blocks on the network. */
+    fun resolve(videoId: String): ResolvedStream
+}
 
 /** Why a track cannot be played, so the app can say it in the user's language. */
 enum class UnavailableReason {
@@ -44,10 +62,24 @@ class StreamUnavailableException(
     val reason: UnavailableReason,
     message: String,
     cause: Throwable? = null,
+    /** A short technical hint for the error message, such as the refusing client. */
+    val detail: String? = null,
 ) : IOException(message, cause)
 
-/** Turns a [Track.streamUri] into a stream URL, remembering it until it expires. */
-class StreamResolver(private val now: () -> Long = System::currentTimeMillis) {
+/**
+ * Turns a [Track.streamUri] into a stream URL, remembering it until it expires.
+ * YouTube goes through NewPipe first and [youtubeFallback] when YouTube refuses
+ * it; after such a refusal the fallback goes first for a while, since the same
+ * network keeps getting refused.
+ */
+class StreamResolver(
+    private val youtubeFallback: YoutubeFallback? = null,
+    private val now: () -> Long = System::currentTimeMillis,
+    private val newPipeYoutube: (pageUrl: String) -> ResolvedStream = ::resolveYoutube,
+) {
+
+    @Volatile
+    private var preferFallbackUntil = 0L
 
     private val cache = object : LinkedHashMap<String, ResolvedStream>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ResolvedStream>) =
@@ -63,43 +95,64 @@ class StreamResolver(private val now: () -> Long = System::currentTimeMillis) {
         val source = musicSourceForHost(uri.host.orEmpty())
             ?: throw StreamUnavailableException(UnavailableReason.UNKNOWN, "Unknown stream $streamUri")
         val track = Track(source, uri.path.trim('/'), "", "", 0, null)
-        val resolved = try {
-            when (source) {
-                MusicSource.YOUTUBE_MUSIC -> resolveYoutube(track.pageUrl)
-                MusicSource.SOUNDCLOUD -> resolveSoundCloud(track.pageUrl)
-            }
-        } catch (e: StreamUnavailableException) {
-            throw e
-        } catch (e: IOException) {
-            throw e
-        } catch (e: Exception) {
-            throw StreamUnavailableException(reasonFor(e), "Cannot play ${track.pageUrl}: ${e.message}", e)
+        val resolved = when (source) {
+            MusicSource.YOUTUBE_MUSIC -> resolveYoutubeWithFallback(track)
+            MusicSource.SOUNDCLOUD -> wrapped(track) { resolveSoundCloud(track.pageUrl) }
         }
         synchronized(cache) { cache[streamUri] = resolved }
         return resolved
     }
 
+    /**
+     * Forgets a stream the server refused. If it came from NewPipe, the
+     * fallback goes first for a while: the refusal is likely to repeat.
+     */
     fun invalidate(streamUri: String) {
-        synchronized(cache) { cache.remove(streamUri) }
+        val refused = synchronized(cache) { cache.remove(streamUri) }
+        if (refused?.fetch == FetchStyle.NEWPIPE && youtubeFallback != null) {
+            preferFallbackUntil = now() + PREFER_FALLBACK_MS
+        }
     }
 
-    private fun resolveYoutube(pageUrl: String): ResolvedStream {
-        val extractor = ServiceList.YouTube.getStreamExtractor(pageUrl)
-        extractor.fetchPage()
-        val stream = pickYoutubeStream(extractor.audioStreams)
-            ?: throw StreamUnavailableException(UnavailableReason.NO_AUDIO, "No audio stream for $pageUrl")
-        val url = stream.content
-        return ResolvedStream(
-            url = url,
-            isHls = false,
-            contentLength = stream.itagItem?.contentLength?.takeIf { it > 0 }
-                ?: queryParameter(url, "clen")?.toLongOrNull()
-                ?: -1,
-            headers = GoogleVideo.headersFor(url),
-            expiresAtMillis = queryParameter(url, "expire")?.toLongOrNull()
-                ?.let { it * 1000 - EXPIRY_MARGIN_MS }
-                ?: (now() + YOUTUBE_FALLBACK_TTL_MS),
-        )
+    private fun resolveYoutubeWithFallback(track: Track): ResolvedStream {
+        val fallback = youtubeFallback ?: return wrapped(track) { newPipeYoutube(track.pageUrl) }
+        var earlierFallbackError: Exception? = null
+        if (now() < preferFallbackUntil) {
+            try {
+                return fallback.resolve(track.id)
+            } catch (e: Exception) {
+                earlierFallbackError = e
+            }
+        }
+        return try {
+            wrapped(track) { newPipeYoutube(track.pageUrl) }
+        } catch (newPipeError: StreamUnavailableException) {
+            if (newPipeError.reason !in RETRY_ELSEWHERE) throw newPipeError
+            try {
+                if (earlierFallbackError != null) throw earlierFallbackError
+                fallback.resolve(track.id).also { preferFallbackUntil = now() + PREFER_FALLBACK_MS }
+            } catch (fallbackError: Exception) {
+                throw StreamUnavailableException(
+                    newPipeError.reason,
+                    "${newPipeError.message}; fallback: ${fallbackError.message}",
+                    newPipeError,
+                    listOfNotNull(
+                        newPipeError.cause?.javaClass?.simpleName?.removeSuffix("Exception"),
+                        (fallbackError as? StreamUnavailableException)?.detail ?: fallbackError.javaClass.simpleName,
+                    ).joinToString(", "),
+                )
+            }
+        }
+    }
+
+    private inline fun wrapped(track: Track, block: () -> ResolvedStream): ResolvedStream = try {
+        block()
+    } catch (e: StreamUnavailableException) {
+        throw e
+    } catch (e: IOException) {
+        throw e
+    } catch (e: Exception) {
+        throw StreamUnavailableException(reasonFor(e), "Cannot play ${track.pageUrl}: ${e.message}", e)
     }
 
     private fun resolveSoundCloud(pageUrl: String): ResolvedStream {
@@ -118,8 +171,18 @@ class StreamResolver(private val now: () -> Long = System::currentTimeMillis) {
 
     companion object {
         private const val MAX_CACHED = 200
-        private const val EXPIRY_MARGIN_MS = 10 * 60 * 1000L
-        private const val YOUTUBE_FALLBACK_TTL_MS = 3 * 60 * 60 * 1000L
+        private const val PREFER_FALLBACK_MS = 30 * 60 * 1000L
+
+        /** Refusals another YouTube client may get past; premium or region locks it will not. */
+        private val RETRY_ELSEWHERE = setOf(
+            UnavailableReason.BLOCKED_BY_SERVICE,
+            UnavailableReason.NOT_AVAILABLE,
+            UnavailableReason.AGE_RESTRICTED,
+            UnavailableReason.NO_AUDIO,
+            UnavailableReason.UNKNOWN,
+        )
+        internal const val EXPIRY_MARGIN_MS = 10 * 60 * 1000L
+        internal const val YOUTUBE_FALLBACK_TTL_MS = 3 * 60 * 60 * 1000L
         private const val SOUNDCLOUD_TTL_MS = 3 * 60 * 1000L
 
         /** Opus in WebM sounds best for its size; AAC in M4A is the fallback. */
@@ -157,6 +220,26 @@ class StreamResolver(private val now: () -> Long = System::currentTimeMillis) {
                 ?.firstOrNull { it.startsWith("$name=") }
                 ?.substringAfter('=')
     }
+}
+
+/** YouTube through NewPipe Extractor, whose visionOS client usually needs no PO token. */
+private fun resolveYoutube(pageUrl: String): ResolvedStream {
+    val extractor = ServiceList.YouTube.getStreamExtractor(pageUrl)
+    extractor.fetchPage()
+    val stream = StreamResolver.pickYoutubeStream(extractor.audioStreams)
+        ?: throw StreamUnavailableException(UnavailableReason.NO_AUDIO, "No audio stream for $pageUrl")
+    val url = stream.content
+    return ResolvedStream(
+        url = url,
+        isHls = false,
+        contentLength = stream.itagItem?.contentLength?.takeIf { it > 0 }
+            ?: StreamResolver.queryParameter(url, "clen")?.toLongOrNull()
+            ?: -1,
+        headers = GoogleVideo.headersFor(url),
+        expiresAtMillis = StreamResolver.queryParameter(url, "expire")?.toLongOrNull()
+            ?.let { it * 1000 - StreamResolver.EXPIRY_MARGIN_MS }
+            ?: (System.currentTimeMillis() + StreamResolver.YOUTUBE_FALLBACK_TTL_MS),
+    )
 }
 
 /**
