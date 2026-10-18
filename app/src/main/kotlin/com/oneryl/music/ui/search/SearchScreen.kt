@@ -23,9 +23,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -38,6 +40,7 @@ import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.MusicSource
 import com.oneryl.music.ui.components.LoadState
 import com.oneryl.music.ui.components.LoadingBlock
+import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
 import com.oneryl.music.ui.components.ScreenTitle
 import com.oneryl.music.ui.components.TrackRow
@@ -111,6 +114,19 @@ fun SearchScreen(viewModel: SearchViewModel, contentPadding: PaddingValues) {
     val source by viewModel.source.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val actions = LocalTrackUi.current.actions
+    val listState = rememberLazyListState()
+    val hideKeyboard = {
+        focus.clearFocus()
+        keyboard?.hide()
+    }
+
+    // Out of the way once the results are being looked at, so the mini player shows again.
+    val scrolling = listState.isScrollInProgress
+    LaunchedEffect(scrolling) {
+        if (scrolling) hideKeyboard()
+    }
 
     Column(Modifier.padding(top = contentPadding.calculateTopPadding())) {
         ScreenTitle(stringResource(R.string.tab_search))
@@ -139,7 +155,7 @@ fun SearchScreen(viewModel: SearchViewModel, contentPadding: PaddingValues) {
                 unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
             ),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+            keyboardActions = KeyboardActions(onSearch = { hideKeyboard() }),
         )
         Row(
             Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -162,11 +178,18 @@ fun SearchScreen(viewModel: SearchViewModel, contentPadding: PaddingValues) {
                 MessageBlock(stringResource(R.string.search_nothing_found))
             } else {
                 LazyColumn(
-                    state = rememberLazyListState(),
+                    state = listState,
                     contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
                 ) {
                     itemsIndexed(state.tracks, key = { _, track -> track.key }) { index, _ ->
-                        TrackRow(state.tracks, index)
+                        TrackRow(
+                            tracks = state.tracks,
+                            index = index,
+                            onClick = {
+                                hideKeyboard()
+                                actions?.play(state.tracks, index)
+                            },
+                        )
                     }
                 }
             }
