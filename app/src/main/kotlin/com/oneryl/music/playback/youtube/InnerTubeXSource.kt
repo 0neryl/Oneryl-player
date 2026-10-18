@@ -131,11 +131,13 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
         } catch (e: CancellationException) {
             throw e
         } catch (e: StreamResolveException) {
+            Log.w(TAG, "Could not resolve $videoId: ${e.reason}")
             throw StreamUnavailableException(reasonFor(e.reason), "InnerTubeX: ${e.reason}", e, "ITX ${e.reason}")
         }
         if (stream == null || stream.sabrBootstrap != null) {
             throw StreamUnavailableException(UnavailableReason.NO_AUDIO, "InnerTubeX found no direct stream", detail = "ITX no stream")
         }
+        Log.i(TAG, "Resolved $videoId with ${stream.clientName}, itag ${stream.itag}")
         ResolvedStream(
             url = stream.audioUrl,
             isHls = false,

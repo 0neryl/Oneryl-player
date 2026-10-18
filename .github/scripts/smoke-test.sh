@@ -96,12 +96,21 @@ elif play_first_result "SoundCloud" "lofi"; then
   adb shell input keyevent KEYCODE_BACK
   sleep 2
 
+  # Pause first, so the check below cannot see the SoundCloud track still playing.
+  adb shell input keyevent KEYCODE_MEDIA_PAUSE
+  sleep 2
   if play_first_result "YouTube Music" "believer"; then
-    echo "YouTube Music track is playing"
+    sleep 15
+    if is_playing; then
+      echo "YouTube Music track is playing"
+    else
+      echo "::warning::The YouTube Music track started but stopped within 15 seconds"
+    fi
   else
     echo "::warning::YouTube Music did not play here; data-centre IPs are often refused, check on a phone"
   fi
   adb exec-out screencap -p > screenshot-youtube.png
+  adb logcat -d | grep -E "InnerTubeX|PoToken|StreamUnavailable|Playback error" | tail -n 40
 else
   adb exec-out screencap -p > screenshot-failed.png
   echo "::error::The SoundCloud track did not start playing"
