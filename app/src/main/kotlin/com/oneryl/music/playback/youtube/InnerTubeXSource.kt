@@ -43,8 +43,13 @@ import okhttp3.OkHttpClient
  * clients in turn and, for the web ones, proves the request comes from a real
  * browser with a BotGuard PO token minted in a hidden WebView. Used when
  * YouTube refuses NewPipe's client, which happens from many VPN addresses.
+ *
+ * Like a browser, it keeps one visitor ID across launches instead of asking
+ * for a new one every time.
  */
 class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback {
+
+    private val preferences = context.getSharedPreferences("innertubex_session", Context.MODE_PRIVATE)
 
     private val httpClient = HttpClient(OkHttp) {
         expectSuccess = false
@@ -100,10 +105,11 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
         override suspend fun close() = poTokens.close()
     }
 
+    private val innerTube by lazy { InnerTube(httpClient, logger = logger) }
+    private val configStore by lazy { RemotePlayerConfigStore(httpClient, PlayerConfigCache(context), logger) }
+    private val cipher by lazy { YouTubeCipherService(httpClient, configStore, logger) }
+
     private val extractor: InnerTubeExtractor by lazy {
-        val innerTube = InnerTube(httpClient, logger = logger)
-        val configStore = RemotePlayerConfigStore(httpClient, PlayerConfigCache(context), logger)
-        val cipher = YouTubeCipherService(httpClient, configStore, logger)
         InnerTubeExtractor(
             configParser = YtConfigParserImpl(httpClient, innerTube, configStore, logger, cipher)
                 .withEmbeddedConfigFallback(),
@@ -115,7 +121,11 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
     }
 
     /** Blocks on the network; the player calls it from a loader thread. */
-    override fun resolve(videoId: String): ResolvedStream = runBlocking(Dispatchers.IO) {
+    override fun resolve(videoId: String, refusedClients: Set<String>): ResolvedStream = runBlocking(Dispatchers.IO) {
+        restoreVisitorData()
+        // A refused stream can mean the cipher signed it wrong; if newer cipher
+        // rules arrive, the refused clients deserve another try.
+        val excluded = if (refusedClients.isNotEmpty() && refreshCipher()) emptySet() else refusedClients
         val stream = try {
             extractor.extract(
                 videoId = videoId,
@@ -124,14 +134,15 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
                     allowSabr = false,
                     allowBoundedRange = true,
                 ),
-                excludedClients = emptySet(),
+                excludedClients = excluded,
                 audioQuality = AudioQuality.HIGH,
                 clientPlaybackNonce = generateClientPlaybackNonce(),
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: StreamResolveException) {
-            Log.w(TAG, "Could not resolve $videoId: ${e.reason}")
+            val attempts = e.diagnostics?.attempts.orEmpty().joinToString { "${it.clientName} ${it.outcome}" }
+            Log.w(TAG, "Could not resolve $videoId: ${e.reason} [$attempts]")
             throw StreamUnavailableException(reasonFor(e.reason), "InnerTubeX: ${e.reason}", e, "ITX ${e.reason}")
         }
         if (stream == null || stream.sabrBootstrap != null) {
@@ -149,6 +160,39 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
             chunkBytes = stream.rangeChunkSizeBytes.takeIf { it > 0 } ?: GoogleVideo.CHUNK_BYTES,
             client = stream.clientName,
         )
+    }
+
+    /** Reuses the saved visitor ID, or asks YouTube for one and saves it. */
+    private suspend fun restoreVisitorData() {
+        if (!innerTube.visitorData.isNullOrBlank()) return
+        val savedAt = preferences.getLong(KEY_VISITOR_DATA_AT, 0L)
+        val saved = preferences.getString(KEY_VISITOR_DATA, null)
+        if (!saved.isNullOrBlank() && System.currentTimeMillis() - savedAt in 0 until VISITOR_DATA_TTL_MS) {
+            innerTube.visitorData = saved
+            return
+        }
+        val fresh = try {
+            innerTube.fetchFreshVisitorData()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "No visitor data: ${e.javaClass.simpleName}")
+            null
+        } ?: return
+        preferences.edit()
+            .putString(KEY_VISITOR_DATA, fresh)
+            .putLong(KEY_VISITOR_DATA_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** Fetches newer cipher rules, at most as often as InnerTubeX allows; true if they changed. */
+    private suspend fun refreshCipher(): Boolean = try {
+        cipher.refreshAfterStreamRejection()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(TAG, "Cipher refresh failed: ${e.javaClass.simpleName}")
+        false
     }
 
     private fun reasonFor(reason: StreamResolveException.Reason) = when (reason) {
@@ -194,6 +238,9 @@ class InnerTubeXSource(context: Context, okHttp: OkHttpClient) : YoutubeFallback
         const val TAG = "InnerTubeX"
         const val EXPIRY_MARGIN_MS = 5 * 60 * 1000L
         const val DEFAULT_TTL_MS = 5 * 60 * 1000L
+        const val VISITOR_DATA_TTL_MS = 7 * 24 * 60 * 60 * 1000L
+        const val KEY_VISITOR_DATA = "visitor_data"
+        const val KEY_VISITOR_DATA_AT = "visitor_data_at"
         const val PLAYER_CONFIG_URL =
             "https://raw.githubusercontent.com/ZemerTeam/zemer-cipher/master/library/src/main/assets/player_configs.json"
     }

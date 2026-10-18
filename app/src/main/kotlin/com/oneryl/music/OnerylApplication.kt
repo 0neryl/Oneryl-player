@@ -13,6 +13,7 @@ import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.NewPipeDownloader
 import com.oneryl.music.data.StreamResolver
+import com.oneryl.music.data.YoutubeIpv4Dns
 import com.oneryl.music.playback.PlayerDataSourceFactory
 import com.oneryl.music.playback.youtube.InnerTubeXSource
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,7 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
+            .dns(YoutubeIpv4Dns())
             .build()
     }
 

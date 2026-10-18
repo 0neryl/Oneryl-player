@@ -27,8 +27,10 @@ import com.oneryl.music.app
 import com.oneryl.music.data.SavedQueue
 import com.oneryl.music.data.StreamUnavailableException
 import com.oneryl.music.data.UnavailableReason
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
@@ -47,7 +49,8 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
 
     private var failuresInARow = 0
-    private val refreshedStreams = mutableSetOf<String>()
+    private val retries = mutableMapOf<String, Int>()
+    private var retryJob: Job? = null
     private var recordedMediaId: String? = null
 
     override fun onCreate() {
@@ -188,7 +191,7 @@ class PlaybackService : MediaSessionService() {
                 return
             }
             failuresInARow = 0
-            refreshedStreams.clear()
+            retries.clear()
             val item = player.currentMediaItem ?: return
             if (item.mediaId != recordedMediaId) {
                 recordedMediaId = item.mediaId
@@ -197,9 +200,12 @@ class PlaybackService : MediaSessionService() {
         }
 
         /**
-         * A refused request usually means the stream URL expired: fetch a new
-         * one once. Anything else skips to the next track, up to a few in a
-         * row so a lost connection does not race through the whole queue.
+         * A refused request means the stream URL expired or YouTube did not
+         * trust the client that found it: fetch a new one, from another client,
+         * a few times. YouTube also turns a busy VPN address away now and then,
+         * so a refusal to give a link at all gets one more try. Anything else
+         * skips to the next track, up to a few in a row so a lost connection
+         * does not race through the whole queue.
          */
         override fun onPlayerError(error: PlaybackException) {
             val item = player.currentMediaItem ?: return
@@ -207,9 +213,20 @@ class PlaybackService : MediaSessionService() {
             val httpCode = error.causes()
                 .filterIsInstance<HttpDataSource.InvalidResponseCodeException>()
                 .firstOrNull()?.responseCode
-            if (streamUri != null && httpCode != null && httpCode in 400..499 && refreshedStreams.add(item.mediaId)) {
-                app.resolver.invalidate(streamUri)
-                player.prepare()
+            val refused = httpCode != null && httpCode in 400..499
+            val turnedAway = error.causes().filterIsInstance<StreamUnavailableException>().firstOrNull()
+                ?.reason in RECHECKED_REASONS
+            val tries = retries[item.mediaId] ?: 0
+            if (streamUri != null && (refused && tries < MAX_REFRESHES || turnedAway && tries == 0)) {
+                retries[item.mediaId] = tries + 1
+                if (refused) app.resolver.invalidate(streamUri)
+                retryJob?.cancel()
+                retryJob = scope.launch {
+                    delay(RETRY_DELAY_MS * (tries + 1))
+                    if (player.currentMediaItem?.mediaId == item.mediaId && player.playerError != null) {
+                        player.prepare()
+                    }
+                }
                 return
             }
 
@@ -274,6 +291,9 @@ class PlaybackService : MediaSessionService() {
         val LIKE_COMMAND = SessionCommand("com.oneryl.music.LIKE", Bundle.EMPTY)
         val ERROR_EVENT = SessionCommand("com.oneryl.music.ERROR", Bundle.EMPTY)
         private const val MAX_FAILURES_IN_A_ROW = 3
+        private const val MAX_REFRESHES = 3
+        private const val RETRY_DELAY_MS = 1000L
+        private val RECHECKED_REASONS = setOf(UnavailableReason.BLOCKED_BY_SERVICE, UnavailableReason.NOT_AVAILABLE)
     }
 }
 

@@ -29,7 +29,7 @@ data class ResolvedStream(
     val expiresAtMillis: Long,
     val fetch: FetchStyle = FetchStyle.NEWPIPE,
     val chunkBytes: Long = GoogleVideo.CHUNK_BYTES,
-    val client: String = "NewPipe",
+    val client: String = StreamResolver.NEWPIPE_CLIENT,
 )
 
 /** How googlevideo.com wants the chunks of a YouTube stream requested. */
@@ -43,8 +43,12 @@ enum class FetchStyle {
 
 /** A second way to get YouTube audio, tried when YouTube refuses NewPipe's client. */
 fun interface YoutubeFallback {
-    /** Blocks on the network. */
-    fun resolve(videoId: String): ResolvedStream
+    /**
+     * Blocks on the network. [refusedClients] names the clients whose streams
+     * googlevideo.com refused for this track a moment ago, so another one is
+     * worth a try.
+     */
+    fun resolve(videoId: String, refusedClients: Set<String>): ResolvedStream
 }
 
 /** Why a track cannot be played, so the app can say it in the user's language. */
@@ -70,7 +74,8 @@ class StreamUnavailableException(
  * Turns a [Track.streamUri] into a stream URL, remembering it until it expires.
  * YouTube goes through NewPipe first and [youtubeFallback] when YouTube refuses
  * it; after such a refusal the fallback goes first for a while, since the same
- * network keeps getting refused.
+ * network keeps getting refused. A stream the server refused is not asked for
+ * from the same client again for a few minutes.
  */
 class StreamResolver(
     private val youtubeFallback: YoutubeFallback? = null,
@@ -86,6 +91,13 @@ class StreamResolver(
             size > MAX_CACHED
     }
 
+    /** Clients whose streams were refused, by stream URI; guarded by [cache]. */
+    private val refusals = object : LinkedHashMap<String, Refusal>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Refusal>) = size > MAX_CACHED
+    }
+
+    private class Refusal(val clients: Set<String>, val atMillis: Long)
+
     /** Blocks on the network; call it from a loader or IO thread. */
     fun resolve(streamUri: String): ResolvedStream {
         synchronized(cache) {
@@ -96,7 +108,7 @@ class StreamResolver(
             ?: throw StreamUnavailableException(UnavailableReason.UNKNOWN, "Unknown stream $streamUri")
         val track = Track(source, uri.path.trim('/'), "", "", 0, null)
         val resolved = when (source) {
-            MusicSource.YOUTUBE_MUSIC -> resolveYoutubeWithFallback(track)
+            MusicSource.YOUTUBE_MUSIC -> resolveYoutubeWithFallback(track, refusedClients(streamUri))
             MusicSource.SOUNDCLOUD -> wrapped(track) { resolveSoundCloud(track.pageUrl) }
         }
         synchronized(cache) { cache[streamUri] = resolved }
@@ -104,24 +116,39 @@ class StreamResolver(
     }
 
     /**
-     * Forgets a stream the server refused. If it came from NewPipe, the
-     * fallback goes first for a while: the refusal is likely to repeat.
+     * Forgets a stream the server refused and the client that found it. If it
+     * came from NewPipe, the fallback goes first for a while: the refusal is
+     * likely to repeat.
      */
     fun invalidate(streamUri: String) {
-        val refused = synchronized(cache) { cache.remove(streamUri) }
+        val refused = synchronized(cache) {
+            cache.remove(streamUri)?.also { stream ->
+                refusals[streamUri] = Refusal(refusedClients(streamUri) + stream.client, now())
+            }
+        }
         if (refused?.fetch == FetchStyle.NEWPIPE && youtubeFallback != null) {
             preferFallbackUntil = now() + PREFER_FALLBACK_MS
         }
     }
 
-    private fun resolveYoutubeWithFallback(track: Track): ResolvedStream {
+    private fun refusedClients(streamUri: String): Set<String> = synchronized(cache) {
+        val refusal = refusals[streamUri] ?: return emptySet()
+        if (now() - refusal.atMillis < REFUSAL_MEMORY_MS) return refusal.clients
+        refusals.remove(streamUri)
+        emptySet()
+    }
+
+    private fun resolveYoutubeWithFallback(track: Track, refused: Set<String>): ResolvedStream {
         val fallback = youtubeFallback ?: return wrapped(track) { newPipeYoutube(track.pageUrl) }
+        val refusedElsewhere = refused - NEWPIPE_CLIENT
         var earlierFallbackError: Exception? = null
-        if (now() < preferFallbackUntil) {
+        if (now() < preferFallbackUntil || NEWPIPE_CLIENT in refused) {
             try {
-                return fallback.resolve(track.id)
+                return fallback.resolve(track.id, refusedElsewhere)
             } catch (e: Exception) {
                 earlierFallbackError = e
+                // It is refused here too, so it stops costing every track a detour.
+                preferFallbackUntil = 0
             }
         }
         return try {
@@ -130,14 +157,14 @@ class StreamResolver(
             if (newPipeError.reason !in RETRY_ELSEWHERE) throw newPipeError
             try {
                 if (earlierFallbackError != null) throw earlierFallbackError
-                fallback.resolve(track.id).also { preferFallbackUntil = now() + PREFER_FALLBACK_MS }
+                fallback.resolve(track.id, refusedElsewhere).also { preferFallbackUntil = now() + PREFER_FALLBACK_MS }
             } catch (fallbackError: Exception) {
                 throw StreamUnavailableException(
                     newPipeError.reason,
                     "${newPipeError.message}; fallback: ${fallbackError.message}",
                     newPipeError,
                     listOfNotNull(
-                        newPipeError.cause?.javaClass?.simpleName?.removeSuffix("Exception"),
+                        newPipeError.detail,
                         (fallbackError as? StreamUnavailableException)?.detail ?: fallbackError.javaClass.simpleName,
                     ).joinToString(", "),
                 )
@@ -152,7 +179,7 @@ class StreamResolver(
     } catch (e: IOException) {
         throw e
     } catch (e: Exception) {
-        throw StreamUnavailableException(reasonFor(e), "Cannot play ${track.pageUrl}: ${e.message}", e)
+        throw StreamUnavailableException(reasonFor(e), "Cannot play ${track.pageUrl}: ${e.message}", e, describe(e))
     }
 
     private fun resolveSoundCloud(pageUrl: String): ResolvedStream {
@@ -170,8 +197,14 @@ class StreamResolver(
     }
 
     companion object {
+        /** [ResolvedStream.client] of the streams NewPipe finds. */
+        const val NEWPIPE_CLIENT = "NewPipe"
+
         private const val MAX_CACHED = 200
         private const val PREFER_FALLBACK_MS = 30 * 60 * 1000L
+        private const val REFUSAL_MEMORY_MS = 5 * 60 * 1000L
+        private const val MAX_SAID_CHARS = 60
+        private val QUOTED = Regex("\"([^\"]+)\"\\s*$")
 
         /** Refusals another YouTube client may get past; premium or region locks it will not. */
         private val RETRY_ELSEWHERE = setOf(
@@ -212,6 +245,17 @@ class StreamResolver(
             is SignInConfirmNotBotException, is ReCaptchaException -> UnavailableReason.BLOCKED_BY_SERVICE
             is ContentNotAvailableException -> UnavailableReason.NOT_AVAILABLE
             else -> UnavailableReason.UNKNOWN
+        }
+
+        /**
+         * The error's name and, for a plain "not available", what YouTube said:
+         * it tells a removed video from a refused address.
+         */
+        internal fun describe(error: Exception): String {
+            val name = error.javaClass.simpleName.removeSuffix("Exception")
+            if (error.javaClass != ContentNotAvailableException::class.java) return name
+            val said = error.message?.let { QUOTED.find(it)?.groupValues?.get(1) }?.take(MAX_SAID_CHARS)
+            return if (said.isNullOrBlank()) name else "$name «$said»"
         }
 
         fun queryParameter(url: String, name: String): String? =
