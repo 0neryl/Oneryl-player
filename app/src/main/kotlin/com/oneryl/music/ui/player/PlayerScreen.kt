@@ -43,11 +43,13 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -90,112 +92,115 @@ fun PlayerScreen(
     val scope = rememberCoroutineScope()
     val dismissDistance = with(LocalDensity.current) { 160.dp.toPx() }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer { translationY = offset.value }
-            .background(
-                Brush.verticalGradient(
-                    listOf(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.background),
-                ),
-            )
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        scope.launch {
-                            if (offset.value > dismissDistance) onClose() else offset.animateTo(0f)
-                        }
-                    },
-                    onDragCancel = { scope.launch { offset.animateTo(0f) } },
-                ) { change, dragAmount ->
-                    change.consume()
-                    scope.launch { offset.snapTo((offset.value + dragAmount).coerceAtLeast(0f)) }
-                }
-            },
-    ) {
-        Column(
+    // Drawn over the Scaffold rather than inside it, so it sets its own content colour.
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
+        Box(
             Modifier
                 .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 24.dp),
+                .graphicsLayer { translationY = offset.value }
+                .background(
+                    Brush.verticalGradient(
+                        listOf(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.background),
+                    ),
+                )
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragEnd = {
+                            scope.launch {
+                                if (offset.value > dismissDistance) onClose() else offset.animateTo(0f)
+                            }
+                        },
+                        onDragCancel = { scope.launch { offset.animateTo(0f) } },
+                    ) { change, dragAmount ->
+                        change.consume()
+                        scope.launch { offset.snapTo((offset.value + dragAmount).coerceAtLeast(0f)) }
+                    }
+                },
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.close))
-                }
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        stringResource(if (showQueue) R.string.queue else R.string.now_playing),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                    Text(
-                        track.source.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = { showQueue = !showQueue }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = stringResource(R.string.queue),
-                        tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-
-            AnimatedContent(
-                targetState = showQueue,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                label = "artwork-or-queue",
-            ) { queue ->
-                if (queue) {
-                    QueueList(state, connection)
-                } else {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Artwork(
-                            track.artworkUrl,
-                            Modifier
-                                .widthIn(max = 420.dp)
-                                .fillMaxWidth()
-                                .aspectRatio(1f),
-                            corner = 8.dp,
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 24.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = stringResource(R.string.close))
+                    }
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            stringResource(if (showQueue) R.string.queue else R.string.now_playing),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Text(
+                            track.source.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = { showQueue = !showQueue }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = stringResource(R.string.queue),
+                            tint = if (showQueue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
-            }
 
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        track.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        track.artist,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                AnimatedContent(
+                    targetState = showQueue,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    label = "artwork-or-queue",
+                ) { queue ->
+                    if (queue) {
+                        QueueList(state, connection)
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Artwork(
+                                track.artworkUrl,
+                                Modifier
+                                    .widthIn(max = 420.dp)
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f),
+                                corner = 8.dp,
+                            )
+                        }
+                    }
                 }
-                IconButton(onClick = onToggleLike) {
-                    Icon(
-                        if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                        contentDescription = stringResource(if (isLiked) R.string.unlike else R.string.like),
-                        tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
 
-            SeekBar(state, connection, track.key, track.durationSeconds * 1000)
-            Controls(state, connection)
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            track.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            track.artist,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(onClick = onToggleLike) {
+                        Icon(
+                            if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = stringResource(if (isLiked) R.string.unlike else R.string.like),
+                            tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+
+                SeekBar(state, connection, track.key, track.durationSeconds * 1000)
+                Controls(state, connection)
+                Spacer(Modifier.height(16.dp))
+            }
         }
     }
 }
