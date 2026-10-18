@@ -1,0 +1,176 @@
+name: Build
+run-name: ${{ github.event_name == 'workflow_dispatch' && inputs.release && 'Release' || 'Build' }} (${{ github.ref_name }})
+
+# Builds the APK, runs the unit tests, plays a SoundCloud track on an
+# emulator, and on request publishes the APK as a GitHub release.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish the APK as a GitHub release"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Use JDK 21
+        run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+
+      - name: Read the version
+        id: version
+        run: echo "version=$(grep '^oneryl.version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      # Every release needs a new version, or phones will not install it over the old one.
+      - name: Check the version is new
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release v$VERSION already exists. Raise oneryl.version in gradle.properties first."
+            exit 1
+          fi
+
+      # The ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS
+      # secrets hold the permanent key; releases are refused without it.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          IS_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "ONERYL_KEYSTORE=$RUNNER_TEMP/release.keystore"
+              echo "ONERYL_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+              echo "ONERYL_KEY_ALIAS=$KEY_ALIAS"
+            } >> "$GITHUB_ENV"
+          elif [ "$IS_RELEASE" = "true" ]; then
+            echo "::error::No ANDROID_KEYSTORE_BASE64 secret. A release signed with another key would not install over the previous one."
+            exit 1
+          else
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret, the APK is signed with a debug key"
+          fi
+
+      - name: Test and build
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleRelease
+
+      - name: Rename APK
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/Oneryl-$VERSION.apk"
+
+      # Stays the same from release to release while the permanent key is used.
+      - name: Show signing certificate
+        continue-on-error: true
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          CERT=$("$APKSIGNER" verify --print-certs dist/*.apk | grep -m 1 'SHA-256 digest' | sed 's/.*: //')
+          echo "APK certificate SHA-256: $CERT"
+          echo "APK certificate SHA-256: \`$CERT\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: apk
+          if-no-files-found: error
+          retention-days: 14
+          path: dist/*.apk
+
+  # Launches the APK on an emulator, plays a SoundCloud track and checks that
+  # Android reports it as playing. Screenshots and logcat are kept.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Play a track on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash .github/scripts/smoke-test.sh
+
+      - name: Upload screenshots and logcat
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-test
+          retention-days: 14
+          if-no-files-found: ignore
+          path: |
+            screenshot-*.png
+            logcat.txt
+
+  release:
+    needs: [build, smoke-test]
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: apk
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          PREVIOUS=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)
+          {
+            echo "Установите APK поверх прошлой версии: лайки, история и очередь сохранятся."
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              echo "Изменения с $PREVIOUS:"
+              git log --no-merges --format='- %s' "$PREVIOUS..HEAD"
+            fi
+          } > notes.md
+          gh release create "v$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "Oneryl $VERSION" \
+            --notes-file notes.md \
+            Oneryl-*.apk

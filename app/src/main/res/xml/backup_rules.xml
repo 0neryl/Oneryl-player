@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Likes and history travel with Android backups; the audio cache does not. -->
+<full-backup-content>
+    <include domain="file" path="library.json" />
+</full-backup-content>

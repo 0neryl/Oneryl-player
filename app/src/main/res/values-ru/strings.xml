@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_home">Главная</string>
+    <string name="tab_search">Поиск</string>
+    <string name="tab_library">Библиотека</string>
+
+    <string name="home_recent">Недавно играли</string>
+    <string name="home_youtube_charts">Популярное на YouTube Music</string>
+    <string name="home_soundcloud_charts">Новое и популярное на SoundCloud</string>
+    <string name="load_failed">Не удалось загрузить. Проверьте подключение.</string>
+    <string name="retry">Повторить</string>
+
+    <string name="search_hint">Треки и исполнители</string>
+    <string name="search_prompt">Ищите музыку на YouTube Music и SoundCloud</string>
+    <string name="search_nothing_found">Ничего не нашлось</string>
+    <string name="search_clear">Очистить</string>
+
+    <string name="library_liked">Любимые треки</string>
+    <string name="library_recent">История</string>
+    <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда</string>
+    <string name="library_empty_recent">Здесь появятся треки, которые вы слушали</string>
+    <plurals name="tracks_count">
+        <item quantity="one">%d трек</item>
+        <item quantity="few">%d трека</item>
+        <item quantity="many">%d треков</item>
+        <item quantity="other">%d трека</item>
+    </plurals>
+
+    <string name="play_all">Слушать</string>
+    <string name="play_next">Играть следующим</string>
+    <string name="add_to_queue">Добавить в очередь</string>
+    <string name="like">Нравится</string>
+    <string name="unlike">Убрать из любимых</string>
+    <string name="more">Ещё</string>
+
+    <string name="now_playing">Сейчас играет</string>
+    <string name="queue">Очередь</string>
+    <string name="up_next">Далее</string>
+    <string name="close">Закрыть</string>
+    <string name="play">Играть</string>
+    <string name="pause">Пауза</string>
+    <string name="next">Следующий</string>
+    <string name="previous">Предыдущий</string>
+    <string name="shuffle">Перемешать</string>
+    <string name="repeat">Повтор</string>
+    <string name="remove_from_queue">Убрать из очереди</string>
+
+    <string name="error_not_available">Этот трек недоступен</string>
+    <string name="error_age_restricted">У трека возрастное ограничение</string>
+    <string name="error_premium">Доступно только по подписке</string>
+    <string name="error_region">Недоступно в вашем регионе</string>
+    <string name="error_blocked">Сервис отклонил запрос, попробуйте позже</string>
+    <string name="error_no_audio">У трека нет звука, который может воспроизвести плеер</string>
+    <string name="error_network">Нет подключения к сети</string>
+    <string name="error_unknown">Не удалось воспроизвести трек</string>
+    <string name="error_skipping">%1$s. Включаю следующий.</string>
+</resources>
