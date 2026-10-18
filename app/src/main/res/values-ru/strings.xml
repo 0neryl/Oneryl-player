@@ -17,7 +17,10 @@
 
     <string name="library_liked">Любимые треки</string>
     <string name="library_recent">История</string>
-    <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда</string>
+    <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда и слушать без сети</string>
+    <string name="offline_count">без сети: %d</string>
+    <string name="offline_ready">Доступен без сети</string>
+    <string name="offline_downloading">Скачивается</string>
     <string name="library_empty_recent">Здесь появятся треки, которые вы слушали</string>
     <plurals name="tracks_count">
         <item quantity="one">%d трек</item>

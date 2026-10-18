@@ -49,6 +49,7 @@ import com.oneryl.music.R
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.Track
+import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.playback.PlayerConnection
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.TrackActions
@@ -60,6 +61,7 @@ import com.oneryl.music.ui.player.MiniPlayer
 import com.oneryl.music.ui.player.PlayerScreen
 import com.oneryl.music.ui.search.SearchScreen
 import com.oneryl.music.ui.search.SearchViewModel
+import kotlinx.coroutines.flow.StateFlow
 
 enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
     HOME(R.string.tab_home, Icons.Outlined.Home, Icons.Filled.Home),
@@ -69,9 +71,15 @@ enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVec
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun OnerylApp(catalog: MusicCatalog, library: LibraryStore, connection: PlayerConnection) {
+fun OnerylApp(
+    catalog: MusicCatalog,
+    library: LibraryStore,
+    offline: StateFlow<Map<String, OfflineState>>,
+    connection: PlayerConnection,
+) {
     val player by connection.state.collectAsStateWithLifecycle()
     val libraryData by library.state.collectAsStateWithLifecycle()
+    val offlineStates by offline.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -103,7 +111,7 @@ fun OnerylApp(catalog: MusicCatalog, library: LibraryStore, connection: PlayerCo
     BackHandler(enabled = !playerOpen && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
-        LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions),
+        LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates),
     ) {
         // Test tags double as resource ids so the emulator test in CI can find the controls.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {

@@ -2,7 +2,9 @@
 # Installs the APK on the running emulator, searches SoundCloud, plays the
 # first result and checks that the media session reports it as playing. Then
 # tries the same with YouTube Music, which may refuse a data-centre IP, so a
-# failure there is only a warning. Leaves screenshots and logcat.txt behind.
+# failure there is only a warning. Finally the SoundCloud track, liked along
+# the way, must play from the Library with the network off. Leaves screenshots
+# and logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -73,6 +75,42 @@ play_first_result() {
   wait_for_playback
 }
 
+# Waits for the liked SoundCloud track to download, cuts the network and plays
+# it from the Library.
+play_offline() {
+  local ready=""
+  for _ in $(seq 1 30); do
+    ready=$(adb logcat -d -s OfflineTracks:I | grep "Ready offline: soundcloud/")
+    [ -n "$ready" ] && break
+    sleep 3
+  done
+  if [ -z "$ready" ]; then
+    echo "::error::The liked SoundCloud track was not downloaded within 90 seconds"
+    return 1
+  fi
+  echo "$ready"
+  adb shell cmd connectivity airplane-mode enable
+  adb shell svc wifi disable
+  adb shell svc data disable
+  sleep 5
+  if adb shell ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1; then
+    echo "::warning::The network is still up, so the offline check proves less"
+  fi
+  tap "Library" || return 1
+  sleep 2
+  tap "track_row" || return 1
+  if wait_for_playback; then
+    sleep 10
+    adb exec-out screencap -p > screenshot-offline.png
+    if is_playing; then
+      echo "The liked track plays without a network"
+      return 0
+    fi
+  fi
+  echo "::error::The downloaded track did not play without a network"
+  return 1
+}
+
 adb install -r "$APK"
 adb shell pm grant "$PACKAGE" android.permission.POST_NOTIFICATIONS 2> /dev/null
 adb logcat -c
@@ -95,6 +133,8 @@ elif play_first_result "SoundCloud" "lofi"; then
   tap "mini_player" && sleep 3 && adb exec-out screencap -p > screenshot-player.png
   adb shell input keyevent KEYCODE_BACK
   sleep 2
+  # Liking the track downloads it; the offline check at the end plays it back.
+  tap "Like"
 
   # Pause first, so the check below cannot see the SoundCloud track still playing.
   adb shell input keyevent KEYCODE_MEDIA_PAUSE
@@ -111,6 +151,16 @@ elif play_first_result "SoundCloud" "lofi"; then
   fi
   adb exec-out screencap -p > screenshot-youtube.png
   adb logcat -d | grep -E "InnerTubeX|PoToken|StreamUnavailable|Playback error" | tail -n 40
+
+  adb shell input keyevent KEYCODE_MEDIA_PAUSE
+  if ! play_offline; then
+    adb exec-out screencap -p > screenshot-offline.png
+    adb logcat -d | grep -E "OfflineTracks|DownloadManager" | tail -n 20
+    STATUS=1
+  fi
+  adb shell cmd connectivity airplane-mode disable
+  adb shell svc wifi enable
+  adb shell svc data enable
 else
   adb exec-out screencap -p > screenshot-failed.png
   echo "::error::The SoundCloud track did not start playing"

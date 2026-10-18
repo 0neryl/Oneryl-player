@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
@@ -50,6 +52,7 @@ import coil3.compose.SubcomposeAsyncImage
 import com.oneryl.music.R
 import com.oneryl.music.data.MusicSource
 import com.oneryl.music.data.Track
+import com.oneryl.music.playback.OfflineState
 
 /** What track lists need from the rest of the app, handed down once from the root. */
 interface TrackActions {
@@ -64,6 +67,7 @@ data class TrackUi(
     val isPlaying: Boolean = false,
     val likedKeys: Set<String> = emptySet(),
     val actions: TrackActions? = null,
+    val offline: Map<String, OfflineState> = emptyMap(),
 )
 
 val LocalTrackUi = compositionLocalOf { TrackUi() }
@@ -154,6 +158,7 @@ fun TrackRow(
                     )
                     Spacer(Modifier.width(4.dp))
                 }
+                OfflineMark(ui.offline[track.key])
                 Text(
                     listOf(track.artist, formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
                     style = MaterialTheme.typography.bodyMedium,
@@ -165,6 +170,19 @@ fun TrackRow(
         }
         if (trailing != null) trailing() else TrackMenu(track)
     }
+}
+
+/** Marks a downloaded track, or one being downloaded, next to its artist. */
+@Composable
+private fun OfflineMark(state: OfflineState?) {
+    val (icon, description, tint) = when (state) {
+        OfflineState.READY -> Triple(Icons.Filled.DownloadForOffline, R.string.offline_ready, MaterialTheme.colorScheme.primary)
+        OfflineState.WAITING, OfflineState.DOWNLOADING ->
+            Triple(Icons.Filled.Downloading, R.string.offline_downloading, MaterialTheme.colorScheme.onSurfaceVariant)
+        OfflineState.FAILED, null -> return
+    }
+    Icon(icon, contentDescription = stringResource(description), tint = tint, modifier = Modifier.size(14.dp))
+    Spacer(Modifier.width(4.dp))
 }
 
 @Composable

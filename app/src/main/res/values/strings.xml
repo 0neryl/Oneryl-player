@@ -21,7 +21,10 @@
 
     <string name="library_liked">Liked songs</string>
     <string name="library_recent">History</string>
-    <string name="library_empty_liked">Tap ♡ on a track to keep it here</string>
+    <string name="library_empty_liked">Tap ♡ on a track to keep it here and listen without a network</string>
+    <string name="offline_count">%d offline</string>
+    <string name="offline_ready">Available offline</string>
+    <string name="offline_downloading">Downloading</string>
     <string name="library_empty_recent">Tracks you play show up here</string>
     <plurals name="tracks_count">
         <item quantity="one">%d track</item>

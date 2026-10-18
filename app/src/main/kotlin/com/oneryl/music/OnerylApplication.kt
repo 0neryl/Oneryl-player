@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -14,6 +15,7 @@ import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.NewPipeDownloader
 import com.oneryl.music.data.StreamResolver
 import com.oneryl.music.data.YoutubeIpv4Dns
+import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerDataSourceFactory
 import com.oneryl.music.playback.youtube.InnerTubeXSource
 import kotlinx.coroutines.CoroutineScope
@@ -45,13 +47,21 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
     val resolver: StreamResolver by lazy { StreamResolver(InnerTubeXSource(this, httpClient)) }
     val library: LibraryStore by lazy { LibraryStore(File(filesDir, "library.json"), scope) }
 
+    private val database by lazy { StandaloneDatabaseProvider(this) }
+    private val streamCache by lazy {
+        SimpleCache(File(cacheDir, "audio"), LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_BYTES), database)
+    }
+
+    /** Downloads of the liked tracks; kept out of backups, which have no room for audio. */
+    private val offlineCache by lazy { SimpleCache(File(noBackupFilesDir, "offline"), NoOpCacheEvictor(), database) }
+
     val playerDataSourceFactory: PlayerDataSourceFactory by lazy {
-        val cache = SimpleCache(
-            File(cacheDir, "audio"),
-            LeastRecentlyUsedCacheEvictor(AUDIO_CACHE_BYTES),
-            StandaloneDatabaseProvider(this),
-        )
-        PlayerDataSourceFactory(httpClient, resolver, cache)
+        PlayerDataSourceFactory(httpClient, resolver, streamCache, offlineCache)
+    }
+
+    val offline: OfflineTracks by lazy {
+        val upstream = PlayerDataSourceFactory(httpClient, resolver, streamCache, offlineCache = null, writeStreamCache = false)
+        OfflineTracks(this, database, offlineCache, upstream, library, scope)
     }
 
     override fun onCreate() {
@@ -62,6 +72,7 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
             Localization(locale.language, locale.country.ifEmpty { null }),
             ContentCountry(locale.country.ifEmpty { "US" }),
         )
+        offline // starts downloading liked tracks that are not downloaded yet
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

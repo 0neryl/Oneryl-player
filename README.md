@@ -2,6 +2,7 @@
 
 Музыкальный плеер для Android: поиск и прослушивание треков из YouTube Music и
 SoundCloud, плеер в шторке и на экране блокировки, лайки, история и очередь.
+Лайкнутые треки скачиваются на телефон и играют без сети.
 
 Написан с нуля на Kotlin и Jetpack Compose; звук играет Media3 (ExoPlayer),
 треки ищет и находит [NewPipe Extractor](https://github.com/TeamNewPipe/NewPipeExtractor).
@@ -25,8 +26,9 @@ SoundCloud, плеер в шторке и на экране блокировки
   выпуск PO-токенов в WebView (`PoTokenWebView`, перенесён из Metrolist).
 - `.../playback` — `PlaybackService` (Media3 `MediaSessionService`: фоновое
   воспроизведение, уведомление, кнопка «нравится», восстановление очереди),
-  загрузка звука (`PlayerDataSourceFactory`: YouTube кусками по 1 МБ через кэш,
-  SoundCloud как HLS) и `PlayerConnection` для интерфейса.
+  загрузка звука (`PlayerDataSourceFactory`: сначала скачанное, YouTube кусками
+  по 1 МБ через кэш, SoundCloud как HLS), скачивание лайкнутых треков
+  (`OfflineTracks`, Media3 `DownloadManager`) и `PlayerConnection` для интерфейса.
 - `.../ui` — экраны «Главная», «Поиск», «Библиотека», мини-плеер и
   полноэкранный плеер.
 

@@ -33,6 +33,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.oneryl.music.R
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.Track
+import com.oneryl.music.playback.OfflineState
+import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
 import com.oneryl.music.ui.components.ScreenTitle
 import com.oneryl.music.ui.components.TrackRow
@@ -47,6 +49,8 @@ fun LibraryScreen(
     val data by library.state.collectAsStateWithLifecycle()
     var showHistory by rememberSaveable { mutableStateOf(false) }
     val tracks = if (showHistory) data.recent else data.liked
+    val offline = LocalTrackUi.current.offline
+    val readyOffline = if (showHistory) 0 else tracks.count { offline[it.key] == OfflineState.READY }
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item { ScreenTitle(stringResource(R.string.tab_library)) }
@@ -82,7 +86,10 @@ fun LibraryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
+                        listOfNotNull(
+                            pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
+                            if (showHistory) null else stringResource(R.string.offline_count, readyOffline),
+                        ).joinToString(" • "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),

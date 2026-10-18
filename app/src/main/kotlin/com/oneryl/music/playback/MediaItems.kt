@@ -11,11 +11,14 @@ import com.oneryl.music.data.musicSourceForHost
 
 private const val EXTRA_DURATION_SECONDS = "oneryl.durationSeconds"
 
-/** SoundCloud plays as HLS, which the player must know before it loads anything. */
+/** SoundCloud plays as HLS, which the player and the downloader must know before they load anything. */
+val Track.mimeType: String?
+    get() = if (source == MusicSource.SOUNDCLOUD) MimeTypes.APPLICATION_M3U8 else null
+
 fun Track.toMediaItem(): MediaItem = MediaItem.Builder()
     .setMediaId(key)
     .setUri(streamUri)
-    .setMimeType(if (source == MusicSource.SOUNDCLOUD) MimeTypes.APPLICATION_M3U8 else null)
+    .setMimeType(mimeType)
     .setMediaMetadata(
         MediaMetadata.Builder()
             .setTitle(title)

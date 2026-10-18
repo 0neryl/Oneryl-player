@@ -18,15 +18,19 @@ import com.oneryl.music.data.musicSourceForHost
 import okhttp3.OkHttpClient
 
 /**
- * Loads `oneryl://` track URIs: YouTube through the cache and the chunked
- * googlevideo reader, SoundCloud HLS playlists and segments straight from the
- * network (their signed URLs change, so caching them is pointless).
+ * Loads `oneryl://` track URIs: downloaded tracks from [offlineCache], the
+ * rest from the network, YouTube through [streamCache] and the chunked
+ * googlevideo reader and SoundCloud HLS playlists and segments directly
+ * (their signed URLs change, so caching them is pointless).
  */
 @UnstableApi
 class PlayerDataSourceFactory(
     client: OkHttpClient,
     private val resolver: StreamResolver,
-    cache: Cache,
+    streamCache: Cache,
+    offlineCache: Cache?,
+    /** False for downloads: they take what playback cached but keep their own copy. */
+    writeStreamCache: Boolean = true,
 ) : DataSource.Factory {
 
     private val http = OkHttpDataSource.Factory(client).setUserAgent(NewPipeDownloader.USER_AGENT)
@@ -40,17 +44,31 @@ class PlayerDataSourceFactory(
     }
 
     private val youtube = CacheDataSource.Factory()
-        .setCache(cache)
+        .setCache(streamCache)
         .setUpstreamDataSourceFactory(ResolvingDataSource.Factory(GoogleVideoDataSource.Factory(client), resolve))
+        .apply { if (!writeStreamCache) setCacheWriteDataSinkFactory(null) }
         .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     private val soundCloud = ResolvingDataSource.Factory(http, resolve)
 
-    override fun createDataSource(): DataSource = RoutingDataSource(
-        youtube = youtube.createDataSource(),
-        soundCloud = soundCloud.createDataSource(),
-        http = http.createDataSource(),
-    )
+    private val network = DataSource.Factory {
+        RoutingDataSource(
+            youtube = youtube.createDataSource(),
+            soundCloud = soundCloud.createDataSource(),
+            http = http.createDataSource(),
+        )
+    }
+
+    /** Reads downloads only; [OfflineTracks] is the one writing them. */
+    private val offline = offlineCache?.let {
+        CacheDataSource.Factory()
+            .setCache(it)
+            .setUpstreamDataSourceFactory(network)
+            .setCacheWriteDataSinkFactory(null)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+    }
+
+    override fun createDataSource(): DataSource = (offline ?: network).createDataSource()
 }
 
 @UnstableApi
