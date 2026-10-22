@@ -32,6 +32,7 @@ import java.net.ServerSocket
 import java.net.SocketAddress
 import java.net.URI
 import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 
 /** The user's own server, from their subscription, and whether the app goes through it. */
 @Serializable
@@ -68,9 +69,9 @@ class SubscriptionException(val reason: Reason, message: String, cause: Throwabl
  * user's own server, the one their VPN uses, without a VPN on the phone. The
  * core listens on 127.0.0.1 only; the app's HTTP client goes through it via
  * [proxySelector] and its WebViews via a proxy override. The subscription's
- * connections are tried in order until one gets through, and while none does
- * the app connects directly. The subscription, which grants access to the
- * server, is stored encrypted.
+ * connections are tried in order until a page loads through the core the way
+ * the app's requests go, and while none does the app connects directly. The
+ * subscription, which grants access to the server, is stored encrypted.
  */
 class ServerTunnel(
     private val context: Context,
@@ -195,7 +196,8 @@ class ServerTunnel(
         _state.value = TunnelState.Connecting
         val socksPort = freePort()
         val httpPort = freePort()
-        proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress(InetAddress.getLoopbackAddress(), socksPort))
+        val local = Proxy(Proxy.Type.SOCKS, InetSocketAddress(LOCALHOST, socksPort))
+        proxy = local
         onRouteChange()
 
         var startError: String? = null
@@ -210,9 +212,9 @@ class ServerTunnel(
             }
             started = true
             val delayMs = try {
-                controller.measureDelay("")
-            } catch (e: Exception) {
-                Log.w(TAG, "${connection.name} did not get through: ${e.message}")
+                checkThrough(local)
+            } catch (e: IOException) {
+                Log.w(TAG, "${connection.name} did not get through: ${e.javaClass.simpleName}")
                 -1L
             }
             if (delayMs >= 0) {
@@ -233,6 +235,19 @@ class ServerTunnel(
             retryJob = null
             connect()
         }
+    }
+
+    /**
+     * Fetches a page through the core's SOCKS inbound, the way the app's own
+     * requests go, and returns how long it took.
+     */
+    private fun checkThrough(local: Proxy): Long {
+        val client = direct.newBuilder().proxy(local).callTimeout(CHECK_TIMEOUT_S, TimeUnit.SECONDS).build()
+        val started = System.nanoTime()
+        client.newCall(Request.Builder().url(CHECK_URL).build()).execute().use { response ->
+            if (response.code != 204 && !response.isSuccessful) throw IOException("HTTP ${response.code}")
+        }
+        return (System.nanoTime() - started) / 1_000_000
     }
 
     /** Stops the core; the app connects directly until the next [connect]. */
@@ -302,8 +317,16 @@ class ServerTunnel(
         const val SUBSCRIPTION_AGENT = "Happ/3.13.0"
         const val REFRESH_MS = 4 * 60 * 60 * 1000L
         const val RETRY_MS = 60_000L
+        const val CHECK_URL = "https://www.google.com/generate_204"
+        const val CHECK_TIMEOUT_S = 12L
         val json = Json { ignoreUnknownKeys = true }
 
-        fun freePort(): Int = ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { it.localPort }
+        /**
+         * Where the core listens, as XrayConfig sets it. Not getLoopbackAddress(),
+         * which on Android is ::1, where nothing listens.
+         */
+        val LOCALHOST: InetAddress = InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))
+
+        fun freePort(): Int = ServerSocket(0, 1, LOCALHOST).use { it.localPort }
     }
 }
