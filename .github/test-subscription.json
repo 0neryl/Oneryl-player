@@ -1,6 +1,0 @@
-[
-  {
-    "remarks": "CI direct",
-    "outbounds": [{"tag": "proxy", "protocol": "freedom"}]
-  }
-]

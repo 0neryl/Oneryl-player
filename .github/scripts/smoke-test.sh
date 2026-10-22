@@ -112,10 +112,12 @@ play_offline() {
   return 1
 }
 
-# Sets up the test subscription as the user's own server, waits until the app
-# reports it connected, and plays a SoundCloud track through it.
+# Sets up an Xray config whose only outbound goes straight out as the user's
+# own server, waits until the app reports it connected, and plays a
+# SoundCloud track through it. The config is typed in: the repository is
+# private, so a subscription link to a file in it would need a token.
 play_through_own_server() {
-  local subscription="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/test-subscription.json"
+  local config='[{"remarks":"CI","outbounds":[{"tag":"proxy","protocol":"freedom"}]}]'
   tap "Library" || return 1
   tap "server_set_up" || return 1
   sleep 2
@@ -124,7 +126,7 @@ play_through_own_server() {
     return 1
   fi
   tap "server_link" || return 1
-  adb shell input text "$subscription"
+  adb shell input text "'$config'"
   tap "Connect" || return 1
   local connected=""
   for _ in $(seq 1 20); do

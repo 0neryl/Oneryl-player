@@ -39,8 +39,8 @@
     <string name="server_title">Свой сервер</string>
     <string name="server_why">Слушать без VPN через сервер, на котором стоит ваш VPN</string>
     <string name="server_set_up">Подключить</string>
-    <string name="server_hint">Вставьте ссылку-подписку вашего сервера, ту же, что для Happ (https://sub.…). Приложение будет ходить в интернет через ваш сервер, и YouTube с SoundCloud заработают без VPN. Российские сайты сервер открывает напрямую.</string>
-    <string name="server_link">Ссылка-подписка</string>
+    <string name="server_hint">Вставьте ссылку-подписку вашего сервера, ту же, что для Happ (https://sub.…). Приложение будет ходить в интернет через ваш сервер, и YouTube с SoundCloud заработают без VPN. Российские сайты сервер открывает напрямую. Подойдёт и конфиг Xray в JSON.</string>
+    <string name="server_link">Ссылка-подписка или конфиг Xray</string>
     <string name="server_connect">Подключить</string>
     <string name="server_connected">Через свой сервер</string>
     <string name="server_connecting">Подключаюсь к серверу…</string>
@@ -53,7 +53,7 @@
     <string name="server_turn_off">Выключить</string>
     <string name="server_change">Сменить подписку</string>
     <string name="server_remove">Удалить</string>
-    <string name="server_error_link">Нужна ссылка-подписка вида https://…</string>
+    <string name="server_error_link">Нужна ссылка-подписка вида https://… или конфиг Xray в JSON</string>
     <string name="server_error_network">Не удалось загрузить подписку (%s)</string>
     <string name="server_error_not_xray">В подписке нет подключений Xray. Нужна панель, которая отдаёт Happ полные конфиги Xray, например Remnawave.</string>
     <string name="server_no_core">Ядро Xray не запускается на этом телефоне</string>

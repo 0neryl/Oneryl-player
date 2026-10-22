@@ -36,6 +36,7 @@ import java.util.concurrent.Executor
 /** The user's own server, from their subscription, and whether the app goes through it. */
 @Serializable
 data class ServerSettings(
+    /** Empty when an Xray config was pasted instead of a subscription link. */
     val subscriptionUrl: String,
     val connections: List<ServerConnection>,
     val fetchedAtMillis: Long,
@@ -112,17 +113,26 @@ class ServerTunnel(
     fun start() {
         val settings = _settings.value?.takeIf { it.enabled } ?: return
         scope.launch {
-            if (System.currentTimeMillis() - settings.fetchedAtMillis > REFRESH_MS) refresh(settings)
+            val stale = System.currentTimeMillis() - settings.fetchedAtMillis > REFRESH_MS
+            if (stale && settings.subscriptionUrl.isNotEmpty()) refresh(settings)
             connect()
         }
     }
 
-    /** Reads the subscription [link] points to, saves it and connects through it. */
-    suspend fun setUp(link: String) {
-        val url = link.trim().toHttpUrlOrNull()?.takeIf { it.isHttps }
-            ?: throw SubscriptionException(SubscriptionException.Reason.BAD_LINK, "Not an https link")
-        val connections = fetch(url.toString())
-        save(ServerSettings(url.toString(), connections, System.currentTimeMillis()))
+    /**
+     * Reads the subscription [input] links to, or takes [input] itself as an
+     * Xray config in JSON, saves it and connects through it.
+     */
+    suspend fun setUp(input: String) {
+        val text = input.trim()
+        val (source, connections) = if (text.startsWith("[") || text.startsWith("{")) {
+            "" to parse(text)
+        } else {
+            val url = text.toHttpUrlOrNull()?.takeIf { it.isHttps }?.toString()
+                ?: throw SubscriptionException(SubscriptionException.Reason.BAD_LINK, "Not an https link")
+            url to fetch(url)
+        }
+        save(ServerSettings(source, connections, System.currentTimeMillis()))
         // In the app's scope, so leaving the screen does not stop the core halfway.
         scope.launch { connect() }.join()
     }
@@ -165,11 +175,13 @@ class ServerTunnel(
         } catch (e: IOException) {
             throw SubscriptionException(SubscriptionException.Reason.NETWORK, e.javaClass.simpleName, e)
         }
-        try {
-            XrayConfig.parseSubscription(body)
-        } catch (e: XrayConfig.NotXrayJson) {
-            throw SubscriptionException(SubscriptionException.Reason.NOT_XRAY, e.message.orEmpty(), e)
-        }
+        parse(body)
+    }
+
+    private fun parse(body: String): List<ServerConnection> = try {
+        XrayConfig.parseSubscription(body)
+    } catch (e: XrayConfig.NotXrayJson) {
+        throw SubscriptionException(SubscriptionException.Reason.NOT_XRAY, e.message.orEmpty(), e)
     }
 
     private suspend fun connect(): Unit = withContext(coreThread) {
