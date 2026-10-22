@@ -32,6 +32,8 @@ data class Playlist(
     val coverUrl: String? = null,
     val sourceUrl: String? = null,
     val entries: List<PlaylistEntry> = emptyList(),
+    /** Kept downloaded, so it plays without a network. */
+    val offline: Boolean = false,
 ) {
     val tracks: List<Track> get() = entries.mapNotNull { it.track }
     val pendingCount: Int get() = entries.count { it.pending }

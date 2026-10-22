@@ -21,6 +21,20 @@
     <string name="library_recent">История</string>
     <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда и слушать без сети</string>
     <string name="offline_count">без сети: %d</string>
+    <string name="download">Скачать</string>
+    <string name="download_remove">Убрать из загрузок</string>
+    <string name="downloads_failed">Не скачалось: %d</string>
+    <string name="downloads_channel">Загрузки</string>
+    <plurals name="downloads_left">
+        <item quantity="one">Скачиваю для офлайна: остался %d трек</item>
+        <item quantity="few">Скачиваю для офлайна: осталось %d трека</item>
+        <item quantity="many">Скачиваю для офлайна: осталось %d треков</item>
+        <item quantity="other">Скачиваю для офлайна: осталось %d трека</item>
+    </plurals>
+    <string name="playlist_download">Скачать для офлайна</string>
+    <string name="playlist_download_stop">Не хранить без сети</string>
+    <string name="playlist_download_title">Скачать «%s»?</string>
+    <string name="playlist_download_text">%1$s, около %2$s. Треки качаются по одному, в том числе в фоне, ход загрузки виден в уведомлении. Треки, которые найдутся позже, тоже скачаются.</string>
 
     <string name="account_youtube">Аккаунт YouTube</string>
     <string name="account_why">Войдите, чтобы слушать треки 18+ и реже получать отказы с VPN</string>

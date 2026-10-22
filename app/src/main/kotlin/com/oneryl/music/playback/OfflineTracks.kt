@@ -21,15 +21,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
-/** How far a liked track is from playing without a network. */
+/** How far a track is from playing without a network. */
 enum class OfflineState { WAITING, DOWNLOADING, READY, FAILED }
 
 /**
- * Keeps the liked tracks downloaded so they play without a network: liking a
- * track queues its download and unliking deletes it. Downloads go to their own
- * cache, which nothing evicts, one at a time so YouTube does not see a burst of
- * requests, and carry on whenever the app is running. A failed download is
- * tried again on the next launch or like.
+ * Keeps tracks downloaded so they play without a network: the liked ones,
+ * the ones downloaded on request and those of offline playlists
+ * ([com.oneryl.music.data.LibraryData.offlineTracks]). A track joining them
+ * queues its download and one leaving them deletes it. Downloads go to their
+ * own cache, which nothing evicts, one at a time so YouTube does not see a
+ * burst of requests; [OfflineDownloadService] keeps them going in the
+ * background. A failed download is tried again on the next launch or
+ * [retryFailed].
  *
  * Create it on the main thread: the download manager reports there.
  */
@@ -42,14 +45,19 @@ class OfflineTracks(
     library: LibraryStore,
     scope: CoroutineScope,
 ) {
-    private val manager = DownloadManager(context, databaseProvider, cache, upstream, Executors.newSingleThreadExecutor())
+    internal val manager = DownloadManager(context, databaseProvider, cache, upstream, Executors.newSingleThreadExecutor())
 
     /** [Download.state] by [Track.key], as the manager last reported it. */
     private val downloads = mutableMapOf<String, Int>()
-    private var liked: List<Track>? = null
+    private var wanted: Map<String, Track>? = null
 
     private val _states = MutableStateFlow<Map<String, OfflineState>>(emptyMap())
     val states: StateFlow<Map<String, OfflineState>> = _states.asStateFlow()
+
+    private val _pending = MutableStateFlow(false)
+
+    /** True while downloads wait or run, which is when the download service should be up. */
+    val pending: StateFlow<Boolean> = _pending.asStateFlow()
 
     init {
         manager.maxParallelDownloads = 1
@@ -58,20 +66,27 @@ class OfflineTracks(
         manager.resumeDownloads()
         scope.launch {
             library.awaitLoaded()
-            library.state.map { it.liked }.distinctUntilChanged().collect {
-                liked = it
+            library.state.map { data -> data.offlineTracks.associateBy(Track::key) }.distinctUntilChanged().collect {
+                wanted = it
                 sync()
             }
         }
     }
 
-    private fun sync() {
-        val liked = liked ?: return
+    /** Queues the failed downloads again; the reason they failed may have passed. */
+    fun retryFailed() = sync(retryFailed = true)
+
+    /**
+     * Queues what should be downloaded and is not, and removes what no longer
+     * should be. Failed downloads wait for [retryFailed] or the next launch, so
+     * a track YouTube refuses is not asked for again on every library change.
+     */
+    private fun sync(retryFailed: Boolean = false) {
+        val wanted = wanted ?: return
         if (!manager.isInitialized) return
-        val wanted = liked.associateBy(Track::key)
         wanted.forEach { (key, track) ->
             val state = downloads[key]
-            if (state == null || state == Download.STATE_FAILED) {
+            if (state == null || (retryFailed && state == Download.STATE_FAILED)) {
                 manager.addDownload(DownloadRequest.Builder(key, track.streamUri.toUri()).setMimeType(track.mimeType).build())
                 downloads[key] = Download.STATE_QUEUED
             }
@@ -85,6 +100,7 @@ class OfflineTracks(
 
     private fun publish() {
         _states.value = downloads.mapNotNull { (key, state) -> offlineState(state)?.let { key to it } }.toMap()
+        _pending.value = downloads.values.any { it != Download.STATE_COMPLETED && it != Download.STATE_FAILED }
     }
 
     private fun offlineState(state: Int): OfflineState? = when (state) {
@@ -102,7 +118,7 @@ class OfflineTracks(
                 while (cursor.moveToNext()) downloads[cursor.download.request.id] = cursor.download.state
             }
             publish()
-            sync()
+            sync(retryFailed = true)
         }
 
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {

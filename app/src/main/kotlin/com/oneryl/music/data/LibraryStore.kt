@@ -28,7 +28,13 @@ data class LibraryData(
     val recent: List<Track> = emptyList(),
     val queue: SavedQueue = SavedQueue(),
     val playlists: List<Playlist> = emptyList(),
-)
+    /** Tracks downloaded on request, besides the liked ones and the offline playlists. */
+    val pinned: List<Track> = emptyList(),
+) {
+    /** Everything to keep downloaded: liked, pinned and offline playlists' tracks, each once. */
+    val offlineTracks: List<Track>
+        get() = (liked + pinned + playlists.filter { it.offline }.flatMap { it.tracks }).distinctBy { it.key }
+}
 
 /** A playlist line still to be looked for on YouTube Music. */
 data class PendingEntry(val playlistId: String, val index: Int, val source: ImportedTrack)
@@ -87,13 +93,30 @@ class LibraryStore(
     /**
      * Adds an imported playlist on top, or replaces the one with its id. Lines
      * already found or given up on in the earlier import keep their result,
-     * so importing again only looks for what is new.
+     * so importing again only looks for what is new, and an offline playlist
+     * stays offline.
      */
     fun putPlaylist(playlist: Playlist) = _state.update { data ->
-        val earlier = data.playlists.firstOrNull { it.id == playlist.id }
-            ?.entries?.filterNot { it.pending }?.associateBy { it.source }.orEmpty()
-        val merged = playlist.copy(entries = playlist.entries.map { earlier[it.source] ?: it })
+        val previous = data.playlists.firstOrNull { it.id == playlist.id }
+        val earlier = previous?.entries?.filterNot { it.pending }?.associateBy { it.source }.orEmpty()
+        val merged = playlist.copy(
+            entries = playlist.entries.map { earlier[it.source] ?: it },
+            offline = previous?.offline ?: playlist.offline,
+        )
         data.copy(playlists = listOf(merged) + data.playlists.filterNot { it.id == playlist.id })
+    }
+
+    /** Downloads [track] on its own, or forgets that request. */
+    fun togglePinned(track: Track) = _state.update { data ->
+        if (data.pinned.any { it.key == track.key }) {
+            data.copy(pinned = data.pinned.filterNot { it.key == track.key })
+        } else {
+            data.copy(pinned = listOf(track) + data.pinned)
+        }
+    }
+
+    fun setPlaylistOffline(id: String, offline: Boolean) = _state.update { data ->
+        data.copy(playlists = data.playlists.map { if (it.id == id) it.copy(offline = offline) else it })
     }
 
     fun removePlaylist(id: String) = _state.update { data -> data.copy(playlists = data.playlists.filterNot { it.id == id }) }

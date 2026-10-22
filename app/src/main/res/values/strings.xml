@@ -25,6 +25,18 @@
     <string name="library_recent">History</string>
     <string name="library_empty_liked">Tap ♡ on a track to keep it here and listen without a network</string>
     <string name="offline_count">%d offline</string>
+    <string name="download">Download</string>
+    <string name="download_remove">Remove download</string>
+    <string name="downloads_failed">Not downloaded: %d</string>
+    <string name="downloads_channel">Downloads</string>
+    <plurals name="downloads_left">
+        <item quantity="one">Downloading for offline: %d track left</item>
+        <item quantity="other">Downloading for offline: %d tracks left</item>
+    </plurals>
+    <string name="playlist_download">Download for offline</string>
+    <string name="playlist_download_stop">Remove downloads</string>
+    <string name="playlist_download_title">Download \"%s\"?</string>
+    <string name="playlist_download_text">%1$s, about %2$s. They download one at a time, in the background too; the notification shows how far it got. Tracks found later download as well.</string>
 
     <string name="account_youtube">YouTube account</string>
     <string name="account_why">Sign in to play 18+ tracks and be refused less often over a VPN</string>

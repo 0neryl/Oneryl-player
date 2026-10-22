@@ -63,6 +63,7 @@ fun LibraryScreen(
     account: YoutubeAccount,
     importer: PlaylistImporter,
     tunnel: ServerTunnel,
+    onRetryDownloads: () -> Unit,
     contentPadding: PaddingValues,
     openPlaylistId: String?,
     onOpenPlaylist: (String?) -> Unit,
@@ -82,6 +83,8 @@ fun LibraryScreen(
             onPlay = onPlay,
             onShuffle = onShuffle,
             onLikeAll = library::likeAll,
+            onOffline = { library.setPlaylistOffline(openPlaylist.id, it) },
+            onRetryDownloads = onRetryDownloads,
             onDelete = {
                 onOpenPlaylist(null)
                 library.removePlaylist(openPlaylist.id)
@@ -97,6 +100,7 @@ fun LibraryScreen(
     val tracks = if (section == LibrarySection.HISTORY) data.recent else data.liked
     val offline = LocalTrackUi.current.offline
     val readyOffline = tracks.count { offline[it.key] == OfflineState.READY }
+    val failedOffline = tracks.count { offline[it.key] == OfflineState.FAILED }
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item { ScreenTitle(stringResource(R.string.tab_library)) }
@@ -161,6 +165,9 @@ fun LibraryScreen(
                         onShuffle = { onShuffle(tracks) },
                     )
                 }
+                if (section == LibrarySection.LIKED && failedOffline > 0) {
+                    item { DownloadsFailed(failedOffline, onRetryDownloads) }
+                }
                 itemsIndexed(tracks, key = { _, track -> track.key }) { index, _ -> TrackRow(tracks, index) }
             }
         }
@@ -192,6 +199,25 @@ fun LibraryScreen(
                 TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
+    }
+}
+
+/** Downloads that failed, and a way to try them again. */
+@Composable
+internal fun DownloadsFailed(count: Int, onRetry: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.downloads_failed, count),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
     }
 }
 

@@ -53,7 +53,7 @@ import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.net.ServerTunnel
-import com.oneryl.music.playback.OfflineState
+import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerConnection
 import com.oneryl.music.ui.account.YoutubeLoginScreen
 import com.oneryl.music.ui.components.LocalTrackUi
@@ -66,7 +66,6 @@ import com.oneryl.music.ui.player.MiniPlayer
 import com.oneryl.music.ui.player.PlayerScreen
 import com.oneryl.music.ui.search.SearchScreen
 import com.oneryl.music.ui.search.SearchViewModel
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -80,7 +79,7 @@ enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVec
 fun OnerylApp(
     catalog: MusicCatalog,
     library: LibraryStore,
-    offline: StateFlow<Map<String, OfflineState>>,
+    offline: OfflineTracks,
     account: YoutubeAccount,
     importer: PlaylistImporter,
     tunnel: ServerTunnel,
@@ -88,7 +87,7 @@ fun OnerylApp(
 ) {
     val player by connection.state.collectAsStateWithLifecycle()
     val libraryData by library.state.collectAsStateWithLifecycle()
-    val offlineStates by offline.collectAsStateWithLifecycle()
+    val offlineStates by offline.states.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var signingIn by rememberSaveable { mutableStateOf(false) }
@@ -102,12 +101,14 @@ fun OnerylApp(
     val searchViewModel = viewModel { SearchViewModel(catalog) }
 
     val likedKeys = remember(libraryData.liked) { libraryData.liked.mapTo(HashSet()) { it.key } }
+    val pinnedKeys = remember(libraryData.pinned) { libraryData.pinned.mapTo(HashSet()) { it.key } }
     val actions = remember(connection, library) {
         object : TrackActions {
             override fun play(tracks: List<Track>, index: Int) = connection.play(tracks, index)
             override fun playNext(track: Track) = connection.playNext(track)
             override fun addToQueue(track: Track) = connection.addToQueue(track)
             override fun toggleLike(track: Track) = library.toggleLike(track)
+            override fun toggleDownload(track: Track) = library.togglePinned(track)
         }
     }
     val current = player.current
@@ -128,7 +129,7 @@ fun OnerylApp(
     BackHandler(enabled = !signingIn && !playerOpen && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
-        LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates),
+        LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates, pinnedKeys),
     ) {
         // Test tags double as resource ids so the emulator test in CI can find the controls.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
@@ -178,6 +179,7 @@ fun OnerylApp(
                                 account = account,
                                 importer = importer,
                                 tunnel = tunnel,
+                                onRetryDownloads = offline::retryFailed,
                                 contentPadding = padding,
                                 openPlaylistId = openPlaylistId,
                                 onOpenPlaylist = { openPlaylistId = it },

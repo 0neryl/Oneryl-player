@@ -118,4 +118,26 @@ class LibraryStoreTest {
         val file = File(folder.root, "library.json").apply { writeText("""{"liked":[],"recent":[]}""") }
         withStore(file) { store -> assertEquals(emptyList<Playlist>(), store.state.value.playlists) }
     }
+
+    @Test
+    fun offlineTracksAreLikedPinnedAndOfflinePlaylistTracksOnce() {
+        withStore(File(folder.root, "library.json")) { store ->
+            store.toggleLike(track("a"))
+            store.togglePinned(track("b"))
+            store.togglePinned(track("a"))
+            store.putPlaylist(Playlist("yandex:p", "Mix", entries = listOf(PlaylistEntry(imported("c")))))
+            store.settle(store.nextPending()!!, track("c"))
+            assertEquals("a playlist is not downloaded until asked", listOf("a", "b"), store.state.value.offlineTracks.map { it.id })
+
+            store.setPlaylistOffline("yandex:p", true)
+            assertEquals(listOf("a", "b", "c"), store.state.value.offlineTracks.map { it.id })
+
+            store.putPlaylist(Playlist("yandex:p", "Mix", entries = listOf(PlaylistEntry(imported("c")))))
+            assertTrue("importing again keeps it offline", store.state.value.playlists.single().offline)
+
+            store.togglePinned(track("b"))
+            store.setPlaylistOffline("yandex:p", false)
+            assertEquals(listOf("a"), store.state.value.offlineTracks.map { it.id })
+        }
+    }
 }

@@ -18,10 +18,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
@@ -60,6 +62,9 @@ interface TrackActions {
     fun playNext(track: Track)
     fun addToQueue(track: Track)
     fun toggleLike(track: Track)
+
+    /** Downloads a track on its own, or drops that download. */
+    fun toggleDownload(track: Track)
 }
 
 data class TrackUi(
@@ -68,6 +73,8 @@ data class TrackUi(
     val likedKeys: Set<String> = emptySet(),
     val actions: TrackActions? = null,
     val offline: Map<String, OfflineState> = emptyMap(),
+    /** Tracks downloaded on their own rather than through Liked or an offline playlist. */
+    val pinnedKeys: Set<String> = emptySet(),
 )
 
 val LocalTrackUi = compositionLocalOf { TrackUi() }
@@ -219,6 +226,18 @@ fun TrackMenu(track: Track) {
                     ui.actions?.addToQueue(track)
                 },
             )
+            // A track kept through Liked or an offline playlist goes with them, not from here.
+            val pinned = track.key in ui.pinnedKeys
+            if (pinned || track.key !in ui.offline) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (pinned) R.string.download_remove else R.string.download)) },
+                    leadingIcon = { Icon(if (pinned) Icons.Filled.FileDownloadOff else Icons.Filled.Download, null) },
+                    onClick = {
+                        open = false
+                        ui.actions?.toggleDownload(track)
+                    },
+                )
+            }
         }
     }
 }

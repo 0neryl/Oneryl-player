@@ -1,5 +1,6 @@
 package com.oneryl.music.ui.library
 
+import android.text.format.Formatter
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -53,7 +57,9 @@ import com.oneryl.music.data.Playlist
 import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YandexMusicException
+import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.ui.components.Artwork
+import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.TrackRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -107,12 +113,18 @@ internal fun PlaylistScreen(
     onPlay: (List<Track>, Int) -> Unit,
     onShuffle: (List<Track>) -> Unit,
     onLikeAll: (List<Track>) -> Unit,
+    onOffline: (Boolean) -> Unit,
+    onRetryDownloads: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val tracks = remember(playlist) { playlist.tracks }
     val missing = remember(playlist) { playlist.missing }
+    val offline = LocalTrackUi.current.offline
+    val readyOffline = tracks.count { offline[it.key] == OfflineState.READY }
+    val failedOffline = tracks.count { offline[it.key] == OfflineState.FAILED }
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var confirmDownload by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item {
@@ -134,6 +146,20 @@ internal fun PlaylistScreen(
                                 menuOpen = false
                                 onLikeAll(tracks)
                             },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(stringResource(if (playlist.offline) R.string.playlist_download_stop else R.string.playlist_download))
+                            },
+                            leadingIcon = {
+                                Icon(if (playlist.offline) Icons.Filled.FileDownloadOff else Icons.Filled.Download, null)
+                            },
+                            enabled = playlist.offline || tracks.isNotEmpty(),
+                            onClick = {
+                                menuOpen = false
+                                if (playlist.offline) onOffline(false) else confirmDownload = true
+                            },
+                            modifier = Modifier.testTag("playlist_download"),
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.playlist_delete)) },
@@ -165,10 +191,16 @@ internal fun PlaylistScreen(
         if (tracks.isNotEmpty()) {
             item {
                 TracksHeader(
-                    summary = pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
+                    summary = listOfNotNull(
+                        pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
+                        if (playlist.offline) stringResource(R.string.offline_count, readyOffline) else null,
+                    ).joinToString(" • "),
                     onPlay = { onPlay(tracks, 0) },
                     onShuffle = { onShuffle(tracks) },
                 )
+            }
+            if (playlist.offline && failedOffline > 0) {
+                item { DownloadsFailed(failedOffline, onRetryDownloads) }
             }
             // A playlist may hold the same track twice, so the position is part of the key.
             itemsIndexed(tracks, key = { index, track -> "$index/${track.key}" }) { index, _ -> TrackRow(tracks, index) }
@@ -189,6 +221,34 @@ internal fun PlaylistScreen(
             }
             items(missing) { MissingRow(it) }
         }
+    }
+
+    if (confirmDownload) {
+        val context = LocalContext.current
+        // About 160 kbit/s, what YouTube Music and SoundCloud streams come at.
+        val bytes = tracks.sumOf { it.durationSeconds.coerceAtLeast(180) } * BYTES_PER_SECOND
+        AlertDialog(
+            onDismissRequest = { confirmDownload = false },
+            title = { Text(stringResource(R.string.playlist_download_title, playlist.title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.playlist_download_text,
+                        pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
+                        Formatter.formatShortFileSize(context, bytes),
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDownload = false
+                    onOffline(true)
+                }) { Text(stringResource(R.string.download)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDownload = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
     }
 
     if (confirmDelete) {
@@ -322,3 +382,5 @@ private fun importError(error: YandexMusicException): String = when (error.reaso
     YandexMusicException.Reason.NETWORK -> stringResource(R.string.import_error_network)
     YandexMusicException.Reason.UNEXPECTED -> stringResource(R.string.import_error_unexpected, error.message.orEmpty())
 }
+
+private const val BYTES_PER_SECOND = 20_000L
