@@ -77,4 +77,45 @@ class LibraryStoreTest {
             assertEquals(listOf("a", "b"), store.state.first().queue.tracks.map { it.id })
         }
     }
+
+    private fun imported(title: String) = ImportedTrack(title, listOf("Artist"), durationSeconds = 180)
+
+    @Test
+    fun reimportingAPlaylistKeepsWhatWasAlreadyFound() {
+        withStore(File(folder.root, "library.json")) { store ->
+            store.putPlaylist(Playlist("yandex:a", "Mix", entries = listOf(PlaylistEntry(imported("one")), PlaylistEntry(imported("two")))))
+            store.settle(store.nextPending()!!, track("1"))
+            store.settle(store.nextPending()!!, null)
+            assertEquals(null, store.nextPending())
+
+            store.putPlaylist(
+                Playlist(
+                    "yandex:a",
+                    "Mix (new)",
+                    entries = listOf(PlaylistEntry(imported("zero")), PlaylistEntry(imported("one")), PlaylistEntry(imported("two"))),
+                ),
+            )
+            val playlist = store.state.value.playlists.single()
+            assertEquals("Mix (new)", playlist.title)
+            assertEquals(listOf(true, false, false), playlist.entries.map { it.pending })
+            assertEquals(listOf("1"), playlist.tracks.map { it.id })
+            assertEquals(listOf("two"), playlist.missing.map { it.title })
+            assertEquals("zero", store.nextPending()?.source?.title)
+        }
+    }
+
+    @Test
+    fun likeAllAddsOnlyWhatIsNotLikedYet() {
+        withStore(File(folder.root, "library.json")) { store ->
+            store.toggleLike(track("b"))
+            store.likeAll(listOf(track("a"), track("b"), track("c"), track("a")))
+            assertEquals(listOf("a", "c", "b"), store.state.value.liked.map { it.id })
+        }
+    }
+
+    @Test
+    fun oldLibraryFilesLoadWithoutPlaylists() {
+        val file = File(folder.root, "library.json").apply { writeText("""{"liked":[],"recent":[]}""") }
+        withStore(file) { store -> assertEquals(emptyList<Playlist>(), store.state.value.playlists) }
+    }
 }

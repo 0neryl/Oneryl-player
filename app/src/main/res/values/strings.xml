@@ -20,6 +20,8 @@
     <string name="source_soundcloud" translatable="false">SoundCloud</string>
 
     <string name="library_liked">Liked songs</string>
+    <string name="library_playlists">Playlists</string>
+    <string name="library_empty_playlists">Bring a playlist over from Yandex Music: its tracks are found on YouTube Music</string>
     <string name="library_recent">History</string>
     <string name="library_empty_liked">Tap ♡ on a track to keep it here and listen without a network</string>
     <string name="offline_count">%d offline</string>
@@ -35,6 +37,28 @@
     <string name="account_sign_out_text">The sign-in data is deleted from this phone, and 18+ tracks stop playing.</string>
     <string name="account_sign_in_failed">Couldn\'t sign in. Try again.</string>
     <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="back">Back</string>
+
+    <string name="import_yandex">Import from Yandex Music</string>
+    <string name="import_hint">In Yandex Music, open the playlist, tap Share → Copy link and paste it here. The playlist must be public. \"Liked\" works too if your profile is open.</string>
+    <string name="import_link">Playlist link</string>
+    <string name="import_action">Import</string>
+    <string name="import_error_link">This is not a link to a Yandex Music playlist</string>
+    <string name="import_error_region">Yandex Music does not open over a VPN. Turn the VPN off, import the playlist, then turn it back on: the tracks are found on YouTube by themselves.</string>
+    <string name="import_error_not_found">Playlist not found. Check the link and that the playlist is public.</string>
+    <string name="import_error_network">Can\'t reach Yandex Music. Check your connection.</string>
+    <string name="import_error_unexpected">Yandex Music gave an unexpected answer (%s)</string>
+    <string name="playlist_from_yandex">Yandex Music</string>
+    <string name="playlist_searching">Looking on YouTube: %1$d of %2$d</string>
+    <string name="playlist_waiting">YouTube can\'t be reached. Turn the VPN on and the search carries on by itself.</string>
+    <string name="playlist_missing">Not found on YouTube: %d</string>
+    <string name="playlist_missing_short">not found: %d</string>
+    <string name="playlist_missing_hint">Try finding these yourself in Search.</string>
+    <string name="playlist_like_all">Add all to Liked</string>
+    <string name="playlist_delete">Delete playlist</string>
+    <string name="playlist_delete_title">Delete \"%s\"?</string>
+    <string name="playlist_delete_text">Tracks you added to Liked stay there.</string>
     <string name="offline_ready">Available offline</string>
     <string name="offline_downloading">Downloading</string>
     <string name="library_empty_recent">Tracks you play show up here</string>

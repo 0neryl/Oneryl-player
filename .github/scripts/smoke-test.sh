@@ -4,7 +4,8 @@
 # tries the same with YouTube Music, which may refuse a data-centre IP, so a
 # failure there is only a warning. Finally the SoundCloud track, liked along
 # the way, must play from the Library with the network off, and the YouTube
-# sign-in page must open. Leaves screenshots and logcat.txt behind.
+# sign-in page and the Yandex Music import must open. Leaves screenshots and
+# logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -171,6 +172,23 @@ elif play_first_result "SoundCloud" "lofi"; then
     sleep 2
   else
     echo "::warning::The YouTube sign-in button was not found"
+  fi
+
+  # Yandex Music serves only Russia and nearby countries, so from here the
+  # import must end in the hint to turn the VPN off.
+  if tap "Playlists" && tap "import_yandex" && tap "import_link"; then
+    adb shell input text "https://music.yandex.ru/users/music-blog/playlists/2490"
+    tap "Import"
+    sleep 10
+    adb exec-out screencap -p > screenshot-import.png
+    if [ -n "$(find_node "import_error")" ]; then
+      echo "The Yandex Music import answered with its error hint"
+    else
+      echo "::warning::The Yandex Music import showed no error; check screenshot-import.png"
+    fi
+    adb shell input keyevent KEYCODE_BACK
+  else
+    echo "::warning::The Yandex Music import dialog did not open"
   fi
 else
   adb exec-out screencap -p > screenshot-failed.png

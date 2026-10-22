@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.oneryl.music.R
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
+import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.playback.OfflineState
@@ -80,6 +81,7 @@ fun OnerylApp(
     library: LibraryStore,
     offline: StateFlow<Map<String, OfflineState>>,
     account: YoutubeAccount,
+    importer: PlaylistImporter,
     connection: PlayerConnection,
 ) {
     val player by connection.state.collectAsStateWithLifecycle()
@@ -88,6 +90,7 @@ fun OnerylApp(
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var signingIn by rememberSaveable { mutableStateOf(false) }
+    var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     val signInFailed = stringResource(R.string.account_sign_in_failed)
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -115,9 +118,12 @@ fun OnerylApp(
     LaunchedEffect(current == null) {
         if (current == null) playerOpen = false
     }
+    // Back closes the topmost thing first: sign-in, the player, an open playlist, then the tab.
+    val playlistShown = tab == Tab.LIBRARY && openPlaylistId != null
     BackHandler(enabled = signingIn) { signingIn = false }
-    BackHandler(enabled = playerOpen && !signingIn) { playerOpen = false }
-    BackHandler(enabled = !playerOpen && tab != Tab.HOME) { tab = Tab.HOME }
+    BackHandler(enabled = !signingIn && playerOpen) { playerOpen = false }
+    BackHandler(enabled = !signingIn && !playerOpen && playlistShown) { openPlaylistId = null }
+    BackHandler(enabled = !signingIn && !playerOpen && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
         LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates),
@@ -168,7 +174,10 @@ fun OnerylApp(
                             Tab.LIBRARY -> LibraryScreen(
                                 library = library,
                                 account = account,
+                                importer = importer,
                                 contentPadding = padding,
+                                openPlaylistId = openPlaylistId,
+                                onOpenPlaylist = { openPlaylistId = it },
                                 onPlay = connection::play,
                                 onShuffle = connection::shuffleAll,
                                 onSignIn = { signingIn = true },

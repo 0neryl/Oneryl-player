@@ -27,11 +27,15 @@ data class LibraryData(
     val liked: List<Track> = emptyList(),
     val recent: List<Track> = emptyList(),
     val queue: SavedQueue = SavedQueue(),
+    val playlists: List<Playlist> = emptyList(),
 )
 
+/** A playlist line still to be looked for on YouTube Music. */
+data class PendingEntry(val playlistId: String, val index: Int, val source: ImportedTrack)
+
 /**
- * Likes, listening history and the last queue, kept in one JSON file on the
- * phone. Newest entries come first.
+ * Likes, listening history, imported playlists and the last queue, kept in
+ * one JSON file on the phone. Newest entries come first.
  */
 @OptIn(FlowPreview::class)
 class LibraryStore(
@@ -73,6 +77,50 @@ class LibraryStore(
     }
 
     fun saveQueue(queue: SavedQueue) = _state.update { it.copy(queue = queue) }
+
+    /** Likes every track in [tracks] that is not liked yet, keeping their order. */
+    fun likeAll(tracks: List<Track>) = _state.update { data ->
+        val liked = data.liked.mapTo(HashSet()) { it.key }
+        data.copy(liked = tracks.filter { it.key !in liked }.distinctBy { it.key } + data.liked)
+    }
+
+    /**
+     * Adds an imported playlist on top, or replaces the one with its id. Lines
+     * already found or given up on in the earlier import keep their result,
+     * so importing again only looks for what is new.
+     */
+    fun putPlaylist(playlist: Playlist) = _state.update { data ->
+        val earlier = data.playlists.firstOrNull { it.id == playlist.id }
+            ?.entries?.filterNot { it.pending }?.associateBy { it.source }.orEmpty()
+        val merged = playlist.copy(entries = playlist.entries.map { earlier[it.source] ?: it })
+        data.copy(playlists = listOf(merged) + data.playlists.filterNot { it.id == playlist.id })
+    }
+
+    fun removePlaylist(id: String) = _state.update { data -> data.copy(playlists = data.playlists.filterNot { it.id == id }) }
+
+    /** The first playlist line nobody has looked for yet, oldest playlist first. */
+    fun nextPending(): PendingEntry? {
+        for (playlist in state.value.playlists.asReversed()) {
+            val index = playlist.entries.indexOfFirst { it.pending }
+            if (index >= 0) return PendingEntry(playlist.id, index, playlist.entries[index].source)
+        }
+        return null
+    }
+
+    /** Records what the search found for [entry], or that it found nothing. */
+    fun settle(entry: PendingEntry, track: Track?) = _state.update { data ->
+        data.copy(
+            playlists = data.playlists.map { playlist ->
+                val current = playlist.entries.getOrNull(entry.index)
+                if (playlist.id != entry.playlistId || current?.source != entry.source) return@map playlist
+                playlist.copy(
+                    entries = playlist.entries.toMutableList().also {
+                        it[entry.index] = PlaylistEntry(entry.source, track, pending = false)
+                    },
+                )
+            },
+        )
+    }
 
     private fun write(data: LibraryData) {
         val temp = File(file.parentFile, "${file.name}.tmp")

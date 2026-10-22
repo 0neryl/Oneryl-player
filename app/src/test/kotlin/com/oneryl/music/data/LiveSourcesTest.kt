@@ -73,4 +73,19 @@ class LiveSourcesTest {
             assertTrue(tracks.isNotEmpty())
         }
     }
+
+    @Test
+    fun importedTracksAreFoundOnYoutubeMusic() = runBlocking {
+        val catalog = MusicCatalog()
+        val matcher = TrackMatcher { catalog.search(MusicSource.YOUTUBE_MUSIC, it) }
+        val tracks = listOf(
+            ImportedTrack("Believer", listOf("Imagine Dragons"), durationSeconds = 204),
+            ImportedTrack("Положение", listOf("Скриптонит"), durationSeconds = 230),
+            ImportedTrack("Группа крови", listOf("Кино"), durationSeconds = 286),
+            ImportedTrack("Sweater Weather", listOf("The Neighbourhood"), durationSeconds = 240),
+        )
+        val found = tracks.map { it to matcher.find(it) }
+        found.forEach { (source, match) -> println("${source.query} -> $match") }
+        assertTrue("most tracks are found", found.count { it.second != null } >= 3)
+    }
 }

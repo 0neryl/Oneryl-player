@@ -12,8 +12,12 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
+import com.oneryl.music.data.MusicSource
 import com.oneryl.music.data.NewPipeDownloader
+import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.StreamResolver
+import com.oneryl.music.data.TrackMatcher
+import com.oneryl.music.data.YandexMusic
 import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.data.YoutubeIpv4Dns
 import com.oneryl.music.playback.OfflineTracks
@@ -49,6 +53,14 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
     private val youtube by lazy { InnerTubeXSource(this, httpClient, account) }
     val resolver: StreamResolver by lazy { StreamResolver(youtube) }
     val library: LibraryStore by lazy { LibraryStore(File(filesDir, "library.json"), scope) }
+    val importer: PlaylistImporter by lazy {
+        PlaylistImporter(
+            YandexMusic(httpClient),
+            TrackMatcher { catalog.search(MusicSource.YOUTUBE_MUSIC, it) },
+            library,
+            scope,
+        )
+    }
 
     private val database by lazy { StandaloneDatabaseProvider(this) }
     private val streamCache by lazy {
@@ -76,6 +88,7 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
             ContentCountry(locale.country.ifEmpty { "US" }),
         )
         offline // starts downloading liked tracks that are not downloaded yet
+        importer.resume()
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =
