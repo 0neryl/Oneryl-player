@@ -48,6 +48,7 @@ import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.data.YoutubeSession
+import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
@@ -61,6 +62,7 @@ fun LibraryScreen(
     library: LibraryStore,
     account: YoutubeAccount,
     importer: PlaylistImporter,
+    tunnel: ServerTunnel,
     contentPadding: PaddingValues,
     openPlaylistId: String?,
     onOpenPlaylist: (String?) -> Unit,
@@ -99,6 +101,7 @@ fun LibraryScreen(
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item { ScreenTitle(stringResource(R.string.tab_library)) }
         item { AccountRow(session, onSignIn = onSignIn, onSignOut = { confirmSignOut = true }) }
+        item { ServerRow(tunnel) }
         item {
             Row(
                 Modifier

@@ -1,9 +1,6 @@
 package com.oneryl.music.data
 
 import android.content.Context
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,11 +10,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import java.security.KeyStore
-import javax.crypto.Cipher
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
-import javax.crypto.spec.GCMParameterSpec
 
 /** A signed-in YouTube session: the youtube.com cookies and page settings, and whose they are. */
 @Serializable
@@ -44,13 +36,14 @@ class YoutubeAccount(
     private val describe: suspend (YoutubeSession) -> YoutubeSession = { it },
 ) {
     private val preferences = context.getSharedPreferences("youtube_account", Context.MODE_PRIVATE)
+    private val box = SecretBox(KEY_ALIAS)
 
     private val _session = MutableStateFlow(load())
     val session: StateFlow<YoutubeSession?> = _session.asStateFlow()
 
     suspend fun signIn(session: YoutubeSession) {
         val described = describe(session)
-        preferences.edit().putString(KEY_SESSION, seal(json.encodeToString(YoutubeSession.serializer(), described))).apply()
+        preferences.edit().putString(KEY_SESSION, box.seal(json.encodeToString(YoutubeSession.serializer(), described))).apply()
         _session.value = described
     }
 
@@ -62,41 +55,12 @@ class YoutubeAccount(
     private fun load(): YoutubeSession? {
         val sealed = preferences.getString(KEY_SESSION, null) ?: return null
         return try {
-            json.decodeFromString(YoutubeSession.serializer(), open(sealed))
+            json.decodeFromString(YoutubeSession.serializer(), box.open(sealed))
         } catch (e: Exception) {
             // A key lost with a reinstall or a reset keystore: the user signs in again.
             Log.w(TAG, "Cannot read the saved session: ${e.javaClass.simpleName}")
             preferences.edit().remove(KEY_SESSION).apply()
             null
-        }
-    }
-
-    private fun seal(text: String): String {
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key()) }
-        val sealed = cipher.doFinal(text.toByteArray())
-        return "${Base64.encodeToString(cipher.iv, Base64.NO_WRAP)}:${Base64.encodeToString(sealed, Base64.NO_WRAP)}"
-    }
-
-    private fun open(sealed: String): String {
-        val (iv, data) = sealed.split(':', limit = 2).map { Base64.decode(it, Base64.NO_WRAP) }
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply {
-            init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(GCM_TAG_BITS, iv))
-        }
-        return String(cipher.doFinal(data))
-    }
-
-    private fun key(): SecretKey {
-        val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-        (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE).run {
-            init(
-                KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .build(),
-            )
-            generateKey()
         }
     }
 
@@ -111,10 +75,7 @@ class YoutubeAccount(
 
         private const val TAG = "YoutubeAccount"
         private const val KEY_SESSION = "session"
-        private const val KEYSTORE = "AndroidKeyStore"
         private const val KEY_ALIAS = "youtube_session"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val GCM_TAG_BITS = 128
         private val json = Json { ignoreUnknownKeys = true }
 
         /** True once YouTube's cookies hold a signed-in session. */

@@ -4,8 +4,8 @@
 # tries the same with YouTube Music, which may refuse a data-centre IP, so a
 # failure there is only a warning. Finally the SoundCloud track, liked along
 # the way, must play from the Library with the network off, and the YouTube
-# sign-in page and the Yandex Music import must open. Leaves screenshots and
-# logcat.txt behind.
+# sign-in page and the Yandex Music import must open, and a track must play
+# through the app's own Xray core. Leaves screenshots and logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -112,6 +112,39 @@ play_offline() {
   return 1
 }
 
+# Sets up the test subscription as the user's own server, waits until the app
+# reports it connected, and plays a SoundCloud track through it.
+play_through_own_server() {
+  local subscription="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/.github/test-subscription.json"
+  tap "Library" || return 1
+  tap "server_set_up" || return 1
+  sleep 2
+  if [ -z "$(find_node "xray_version")" ]; then
+    echo "::error::The Xray core version is not shown; the core did not load"
+    return 1
+  fi
+  tap "server_link" || return 1
+  adb shell input text "$subscription"
+  tap "Connect" || return 1
+  local connected=""
+  for _ in $(seq 1 20); do
+    connected=$(find_node "server_connected")
+    [ -n "$connected" ] && break
+    sleep 3
+  done
+  adb exec-out screencap -p > screenshot-server.png
+  if [ -z "$connected" ]; then
+    echo "::error::The app did not connect through its own Xray core"
+    return 1
+  fi
+  if play_first_result "SoundCloud" "lofi"; then
+    echo "A track plays through the app's own Xray core"
+    return 0
+  fi
+  echo "::error::No track played through the app's own Xray core"
+  return 1
+}
+
 adb install -r "$APK"
 adb shell pm grant "$PACKAGE" android.permission.POST_NOTIFICATIONS 2> /dev/null
 adb logcat -c
@@ -190,6 +223,16 @@ elif play_first_result "SoundCloud" "lofi"; then
   else
     echo "::warning::The Yandex Music import dialog did not open"
   fi
+
+  # The app's own Xray core with a subscription whose only outbound goes
+  # straight out: the track below then reaches the app through the core.
+  adb shell input keyevent KEYCODE_MEDIA_PAUSE
+  sleep 2
+  if ! play_through_own_server; then
+    adb exec-out screencap -p > screenshot-server.png
+    STATUS=1
+  fi
+  adb logcat -d | grep -E "ServerTunnel|GoLog" | tail -n 20
 else
   adb exec-out screencap -p > screenshot-failed.png
   echo "::error::The SoundCloud track did not start playing"

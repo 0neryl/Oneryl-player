@@ -40,6 +40,28 @@
     <string name="delete">Delete</string>
     <string name="back">Back</string>
 
+    <string name="server_title">Your own server</string>
+    <string name="server_why">Listen without a VPN, through the server your VPN runs on</string>
+    <string name="server_set_up">Set up</string>
+    <string name="server_hint">Paste your server\'s subscription link, the one Happ uses (https://sub.…). The app then reaches the internet through your server, so YouTube and SoundCloud work without a VPN; the server opens Russian sites directly.</string>
+    <string name="server_link">Subscription link</string>
+    <string name="server_connect">Connect</string>
+    <string name="server_connected">Through your server</string>
+    <string name="server_connecting">Connecting to your server…</string>
+    <string name="server_unreachable">Your server does not answer</string>
+    <string name="server_unreachable_hint">Connecting directly for now; trying again every minute</string>
+    <string name="server_broken">The connection did not start</string>
+    <string name="server_off">Your own server is off</string>
+    <string name="server_off_hint">The app connects directly</string>
+    <string name="server_turn_on">Turn on</string>
+    <string name="server_turn_off">Turn off</string>
+    <string name="server_change">Change subscription</string>
+    <string name="server_remove">Remove</string>
+    <string name="server_error_link">This needs an https:// subscription link</string>
+    <string name="server_error_network">Couldn\'t load the subscription (%s)</string>
+    <string name="server_error_not_xray">The subscription has no Xray connections. It needs a panel that gives Happ full Xray configs, such as Remnawave.</string>
+    <string name="server_no_core">The Xray core does not run on this phone</string>
+
     <string name="import_yandex">Import from Yandex Music</string>
     <string name="import_hint">In Yandex Music, open the playlist, tap Share → Copy link and paste it here. The playlist must be public. \"Liked\" works too if your profile is open.</string>
     <string name="import_link">Playlist link</string>

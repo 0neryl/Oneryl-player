@@ -36,6 +36,28 @@
     <string name="delete">Удалить</string>
     <string name="back">Назад</string>
 
+    <string name="server_title">Свой сервер</string>
+    <string name="server_why">Слушать без VPN через сервер, на котором стоит ваш VPN</string>
+    <string name="server_set_up">Подключить</string>
+    <string name="server_hint">Вставьте ссылку-подписку вашего сервера, ту же, что для Happ (https://sub.…). Приложение будет ходить в интернет через ваш сервер, и YouTube с SoundCloud заработают без VPN. Российские сайты сервер открывает напрямую.</string>
+    <string name="server_link">Ссылка-подписка</string>
+    <string name="server_connect">Подключить</string>
+    <string name="server_connected">Через свой сервер</string>
+    <string name="server_connecting">Подключаюсь к серверу…</string>
+    <string name="server_unreachable">Сервер не отвечает</string>
+    <string name="server_unreachable_hint">Пока напрямую, пробую снова каждую минуту</string>
+    <string name="server_broken">Подключение не запустилось</string>
+    <string name="server_off">Свой сервер выключен</string>
+    <string name="server_off_hint">Приложение ходит напрямую</string>
+    <string name="server_turn_on">Включить</string>
+    <string name="server_turn_off">Выключить</string>
+    <string name="server_change">Сменить подписку</string>
+    <string name="server_remove">Удалить</string>
+    <string name="server_error_link">Нужна ссылка-подписка вида https://…</string>
+    <string name="server_error_network">Не удалось загрузить подписку (%s)</string>
+    <string name="server_error_not_xray">В подписке нет подключений Xray. Нужна панель, которая отдаёт Happ полные конфиги Xray, например Remnawave.</string>
+    <string name="server_no_core">Ядро Xray не запускается на этом телефоне</string>
+
     <string name="import_yandex">Импорт из Яндекс Музыки</string>
     <string name="import_hint">Откройте плейлист в Яндекс Музыке, нажмите «Поделиться» → «Скопировать ссылку» и вставьте её сюда. Плейлист должен быть открыт для всех. «Мне нравится» тоже подойдёт, если профиль открыт.</string>
     <string name="import_link">Ссылка на плейлист</string>

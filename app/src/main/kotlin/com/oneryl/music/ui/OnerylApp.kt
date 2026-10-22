@@ -52,6 +52,7 @@ import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YoutubeAccount
+import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.playback.PlayerConnection
 import com.oneryl.music.ui.account.YoutubeLoginScreen
@@ -82,6 +83,7 @@ fun OnerylApp(
     offline: StateFlow<Map<String, OfflineState>>,
     account: YoutubeAccount,
     importer: PlaylistImporter,
+    tunnel: ServerTunnel,
     connection: PlayerConnection,
 ) {
     val player by connection.state.collectAsStateWithLifecycle()
@@ -175,6 +177,7 @@ fun OnerylApp(
                                 library = library,
                                 account = account,
                                 importer = importer,
+                                tunnel = tunnel,
                                 contentPadding = padding,
                                 openPlaylistId = openPlaylistId,
                                 onOpenPlaylist = { openPlaylistId = it },

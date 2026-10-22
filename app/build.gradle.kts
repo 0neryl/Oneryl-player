@@ -1,4 +1,6 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URI
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
@@ -18,6 +20,30 @@ val appVersionCode = appVersion.split(".").map(String::toInt).let { (major, mino
 // release builds fall back to the debug key and cannot update a released APK.
 val releaseKeystore = System.getenv("ONERYL_KEYSTORE")?.takeIf { it.isNotBlank() }
 
+// The Xray core for connecting through the user's own server: libv2ray from
+// 2dust/AndroidLibXrayLite (LGPL-3.0), the build v2rayNG uses. At 62 MB it is
+// downloaded at build time and checked against its SHA-256 instead of kept in git.
+val xrayVersion = "v26.9.30"
+val xrayAarSha256 = "cf71680b776b9ca583747ba652f816b047a655eab875d8951e6141636d88bbd6"
+val xrayAar = layout.projectDirectory.file("libs/libv2ray-$xrayVersion.aar").asFile
+
+val fetchXrayCore by tasks.registering {
+    val target = xrayAar
+    val source = "https://github.com/2dust/AndroidLibXrayLite/releases/download/$xrayVersion/libv2ray.aar"
+    val expected = xrayAarSha256
+    outputs.file(target)
+    doLast {
+        fun sha256(file: File) = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+        if (target.isFile && sha256(target) == expected) return@doLast
+        target.parentFile.mkdirs()
+        val part = File(target.path + ".part")
+        URI(source).toURL().openStream().use { input -> part.outputStream().use { input.copyTo(it) } }
+        check(sha256(part) == expected) { "The Xray core from $source does not match its SHA-256" }
+        check(part.renameTo(target)) { "Could not move the Xray core into place" }
+    }
+}
+tasks.named("preBuild") { dependsOn(fetchXrayCore) }
+
 android {
     namespace = "com.oneryl.music"
     compileSdk = 37
@@ -28,6 +54,14 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersion
+
+        // Phones are arm64; x86_64 is for the emulator test. The Xray core is 35 MB per ABI.
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+    }
+
+    // The Xray core's geo databases serve routing rules the app does not use.
+    androidResources {
+        ignoreAssetsPatterns += listOf("!geoip.dat", "!geosite.dat", "!geoip-only-cn-private.dat")
     }
 
     signingConfigs {
@@ -74,6 +108,8 @@ android {
     }
 
     packaging {
+        // Compressed in the APK: stored uncompressed, the Xray core alone would add 70 MB.
+        jniLibs { useLegacyPackaging = true }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
             excludes += "META-INF/*.md"
@@ -117,6 +153,8 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.core.ktx)
+    implementation(libs.webkit)
+    implementation(files(xrayAar))
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.exoplayer.hls)

@@ -20,6 +20,7 @@ import com.oneryl.music.data.TrackMatcher
 import com.oneryl.music.data.YandexMusic
 import com.oneryl.music.data.YoutubeAccount
 import com.oneryl.music.data.YoutubeIpv4Dns
+import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerDataSourceFactory
 import com.oneryl.music.playback.youtube.InnerTubeXSource
@@ -31,6 +32,7 @@ import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.localization.ContentCountry
 import org.schabi.newpipe.extractor.localization.Localization
 import java.io.File
+import java.net.Proxy
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -40,13 +42,22 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    val httpClient: OkHttpClient by lazy {
+    private val baseClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .dns(YoutubeIpv4Dns())
             .build()
     }
+
+    /** The user's own server, when set up; everything below reaches the internet through it. */
+    val tunnel: ServerTunnel by lazy {
+        ServerTunnel(this, baseClient.newBuilder().proxy(Proxy.NO_PROXY).build(), scope) {
+            httpClient.connectionPool.evictAll()
+        }
+    }
+
+    val httpClient: OkHttpClient by lazy { baseClient.newBuilder().proxySelector(tunnel.proxySelector).build() }
 
     val catalog = MusicCatalog()
     val account: YoutubeAccount by lazy { YoutubeAccount(this) { youtube.describe(it) } }
@@ -81,6 +92,7 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        tunnel.start()
         val locale = Locale.getDefault()
         NewPipe.init(
             NewPipeDownloader(httpClient),
