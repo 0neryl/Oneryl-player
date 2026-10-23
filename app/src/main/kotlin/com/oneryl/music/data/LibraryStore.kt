@@ -121,6 +121,16 @@ class LibraryStore(
 
     fun removePlaylist(id: String) = _state.update { data -> data.copy(playlists = data.playlists.filterNot { it.id == id }) }
 
+    /** Puts the lines of playlist [id] that were not found back in line for the search. */
+    fun searchMissingAgain(id: String) = _state.update { data ->
+        data.copy(
+            playlists = data.playlists.map { playlist ->
+                if (playlist.id != id) return@map playlist
+                playlist.copy(entries = playlist.entries.map { if (it.track == null) it.copy(pending = true) else it })
+            },
+        )
+    }
+
     /** The first playlist line nobody has looked for yet, oldest playlist first. */
     fun nextPending(): PendingEntry? {
         for (playlist in state.value.playlists.asReversed()) {

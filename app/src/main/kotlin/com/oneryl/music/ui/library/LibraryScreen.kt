@@ -72,12 +72,12 @@ fun LibraryScreen(
     onSignIn: () -> Unit,
 ) {
     val data by library.state.collectAsStateWithLifecycle()
-    val waitingForYoutube by importer.waitingForYoutube.collectAsStateWithLifecycle()
+    val waitingForNetwork by importer.waitingForNetwork.collectAsStateWithLifecycle()
     val openPlaylist = openPlaylistId?.let { id -> data.playlists.firstOrNull { it.id == id } }
     if (openPlaylist != null) {
         PlaylistScreen(
             playlist = openPlaylist,
-            waitingForYoutube = waitingForYoutube,
+            waitingForNetwork = waitingForNetwork,
             contentPadding = contentPadding,
             onBack = { onOpenPlaylist(null) },
             onPlay = onPlay,
@@ -85,6 +85,7 @@ fun LibraryScreen(
             onLikeAll = library::likeAll,
             onOffline = { library.setPlaylistOffline(openPlaylist.id, it) },
             onRetryDownloads = onRetryDownloads,
+            onSearchAgain = { importer.searchMissingAgain(openPlaylist.id) },
             onDelete = {
                 onOpenPlaylist(null)
                 library.removePlaylist(openPlaylist.id)

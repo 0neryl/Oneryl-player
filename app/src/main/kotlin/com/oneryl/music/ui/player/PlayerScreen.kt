@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,6 +74,7 @@ import com.oneryl.music.R
 import com.oneryl.music.playback.PlayerConnection
 import com.oneryl.music.playback.PlayerState
 import com.oneryl.music.ui.components.Artwork
+import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.TrackRow
 import com.oneryl.music.ui.components.formatDuration
 import com.oneryl.music.ui.components.label
@@ -87,6 +90,7 @@ fun PlayerScreen(
     onClose: () -> Unit,
 ) {
     val track = state.current ?: return
+    val actions = LocalTrackUi.current.actions
     var showQueue by rememberSaveable { mutableStateOf(false) }
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -186,6 +190,9 @@ fun PlayerScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .clickable(enabled = track.artist.isNotEmpty()) { actions?.openArtist(track) }
+                                .testTag("player_artist"),
                         )
                     }
                     IconButton(onClick = onToggleLike) {

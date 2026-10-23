@@ -105,6 +105,25 @@ class LibraryStoreTest {
     }
 
     @Test
+    fun missingLinesCanBeSearchedForAgain() {
+        withStore(File(folder.root, "library.json")) { store ->
+            store.putPlaylist(Playlist("yandex:a", "Mix", entries = listOf(PlaylistEntry(imported("one")), PlaylistEntry(imported("two")))))
+            store.putPlaylist(Playlist("yandex:b", "Other", entries = listOf(PlaylistEntry(imported("three")))))
+            store.settle(store.nextPending()!!, track("1"))
+            store.settle(store.nextPending()!!, null)
+            store.settle(store.nextPending()!!, null)
+            assertEquals(null, store.nextPending())
+
+            store.searchMissingAgain("yandex:a")
+            val pending = store.nextPending()
+            assertEquals("only the line not found, of that playlist", "two", pending?.source?.title)
+            store.settle(pending!!, track("2"))
+            assertEquals(null, store.nextPending())
+            assertEquals(listOf("1", "2"), store.state.value.playlists.first { it.id == "yandex:a" }.tracks.map { it.id })
+        }
+    }
+
+    @Test
     fun likeAllAddsOnlyWhatIsNotLikedYet() {
         withStore(File(folder.root, "library.json")) { store ->
             store.toggleLike(track("b"))

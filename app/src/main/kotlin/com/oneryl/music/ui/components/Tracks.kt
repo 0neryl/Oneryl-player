@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material3.DropdownMenu
@@ -65,6 +66,9 @@ interface TrackActions {
 
     /** Downloads a track on its own, or drops that download. */
     fun toggleDownload(track: Track)
+
+    /** Asks which service to open the artist of [track] on, then opens them there. */
+    fun openArtist(track: Track)
 }
 
 data class TrackUi(
@@ -125,7 +129,10 @@ val MusicSource.label: String
         MusicSource.SOUNDCLOUD -> "SoundCloud"
     }
 
-/** One line of a track list: tap plays [tracks] from [index], the menu holds the rest. */
+/**
+ * One line of a track list: tap plays [tracks] from [index], tapping the
+ * artist opens them, the menu holds the rest.
+ */
 @Composable
 fun TrackRow(
     tracks: List<Track>,
@@ -166,13 +173,28 @@ fun TrackRow(
                     Spacer(Modifier.width(4.dp))
                 }
                 OfflineMark(ui.offline[track.key])
-                Text(
-                    listOf(track.artist, formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (track.artist.isNotEmpty()) {
+                    Text(
+                        track.artist,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .clickable { ui.actions?.openArtist(track) }
+                            .testTag("track_artist"),
+                    )
+                }
+                val duration = formatDuration(track.durationSeconds)
+                if (duration.isNotEmpty()) {
+                    Text(
+                        if (track.artist.isNotEmpty()) " • $duration" else duration,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
             }
         }
         if (trailing != null) trailing() else TrackMenu(track)
@@ -226,6 +248,17 @@ fun TrackMenu(track: Track) {
                     ui.actions?.addToQueue(track)
                 },
             )
+            if (track.artist.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.artist_open)) },
+                    leadingIcon = { Icon(Icons.Filled.Person, null) },
+                    onClick = {
+                        open = false
+                        ui.actions?.openArtist(track)
+                    },
+                    modifier = Modifier.testTag("menu_artist"),
+                )
+            }
             // A track kept through Liked or an offline playlist goes with them, not from here.
             val pinned = track.key in ui.pinnedKeys
             if (pinned || track.key !in ui.offline) {

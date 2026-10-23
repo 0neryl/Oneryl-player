@@ -16,6 +16,7 @@ import com.oneryl.music.data.MusicSource
 import com.oneryl.music.data.NewPipeDownloader
 import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.StreamResolver
+import com.oneryl.music.data.Track
 import com.oneryl.music.data.TrackMatcher
 import com.oneryl.music.data.YandexMusic
 import com.oneryl.music.data.YoutubeAccount
@@ -67,7 +68,11 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
     val importer: PlaylistImporter by lazy {
         PlaylistImporter(
             YandexMusic(httpClient),
-            TrackMatcher { catalog.search(MusicSource.YOUTUBE_MUSIC, it) },
+            // YouTube Music first: it plays in better quality, so it gets a song both have.
+            TrackMatcher(
+                listOf(MusicSource.YOUTUBE_MUSIC, MusicSource.SOUNDCLOUD)
+                    .map<MusicSource, suspend (String) -> List<Track>> { source -> { query -> catalog.search(source, query) } },
+            ),
             library,
             scope,
         )

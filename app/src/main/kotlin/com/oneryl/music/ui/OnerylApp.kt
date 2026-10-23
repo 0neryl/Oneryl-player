@@ -47,6 +47,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.oneryl.music.R
+import com.oneryl.music.data.ArtistRequest
 import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.MusicCatalog
 import com.oneryl.music.data.PlaylistImporter
@@ -56,6 +57,10 @@ import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerConnection
 import com.oneryl.music.ui.account.YoutubeLoginScreen
+import com.oneryl.music.ui.artist.ArtistRequestSaver
+import com.oneryl.music.ui.artist.ArtistScreen
+import com.oneryl.music.ui.artist.ArtistSourceDialog
+import com.oneryl.music.ui.artist.ArtistViewModel
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.TrackActions
 import com.oneryl.music.ui.components.TrackUi
@@ -92,6 +97,9 @@ fun OnerylApp(
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var signingIn by rememberSaveable { mutableStateOf(false) }
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var artist by rememberSaveable(stateSaver = ArtistRequestSaver) { mutableStateOf<ArtistRequest?>(null) }
+    // The artist whose service is being asked for.
+    var artistChoice by rememberSaveable(stateSaver = ArtistRequestSaver) { mutableStateOf<ArtistRequest?>(null) }
     val signInFailed = stringResource(R.string.account_sign_in_failed)
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -99,6 +107,7 @@ fun OnerylApp(
 
     val homeViewModel = viewModel { HomeViewModel(catalog) }
     val searchViewModel = viewModel { SearchViewModel(catalog) }
+    val artistViewModel = viewModel { ArtistViewModel(catalog) }
 
     val likedKeys = remember(libraryData.liked) { libraryData.liked.mapTo(HashSet()) { it.key } }
     val pinnedKeys = remember(libraryData.pinned) { libraryData.pinned.mapTo(HashSet()) { it.key } }
@@ -109,6 +118,9 @@ fun OnerylApp(
             override fun addToQueue(track: Track) = connection.addToQueue(track)
             override fun toggleLike(track: Track) = library.toggleLike(track)
             override fun toggleDownload(track: Track) = library.togglePinned(track)
+            override fun openArtist(track: Track) {
+                artistChoice = ArtistRequest.of(track)
+            }
         }
     }
     val current = player.current
@@ -121,12 +133,15 @@ fun OnerylApp(
     LaunchedEffect(current == null) {
         if (current == null) playerOpen = false
     }
-    // Back closes the topmost thing first: sign-in, the player, an open playlist, then the tab.
-    val playlistShown = tab == Tab.LIBRARY && openPlaylistId != null
+    // Back closes the topmost thing first: sign-in, the player, an artist, an open playlist, then the tab.
+    val artistShown = artist != null
+    val playlistShown = !artistShown && tab == Tab.LIBRARY && openPlaylistId != null
+    val overlay = signingIn || playerOpen
     BackHandler(enabled = signingIn) { signingIn = false }
     BackHandler(enabled = !signingIn && playerOpen) { playerOpen = false }
-    BackHandler(enabled = !signingIn && !playerOpen && playlistShown) { openPlaylistId = null }
-    BackHandler(enabled = !signingIn && !playerOpen && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
+    BackHandler(enabled = !overlay && artistShown) { artist = null }
+    BackHandler(enabled = !overlay && playlistShown) { openPlaylistId = null }
+    BackHandler(enabled = !overlay && !artistShown && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
         LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates, pinnedKeys),
@@ -149,7 +164,10 @@ fun OnerylApp(
                             Tab.entries.forEach { item ->
                                 NavigationBarItem(
                                     selected = item == tab,
-                                    onClick = { tab = item },
+                                    onClick = {
+                                        tab = item
+                                        artist = null
+                                    },
                                     icon = {
                                         Icon(if (item == tab) item.selectedIcon else item.icon, contentDescription = null)
                                     },
@@ -165,28 +183,47 @@ fun OnerylApp(
                     }
                 },
             ) { padding ->
+                // An artist opens over whichever tab they were found on; a tab button closes them.
                 AnimatedContent(
-                    targetState = tab,
+                    targetState = artist,
+                    contentKey = { it != null },
                     transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
-                    label = "tabs",
-                ) { shown ->
-                    tabStates.SaveableStateProvider(shown) {
-                        when (shown) {
-                            Tab.HOME -> HomeScreen(homeViewModel, library, padding)
-                            Tab.SEARCH -> SearchScreen(searchViewModel, padding)
-                            Tab.LIBRARY -> LibraryScreen(
-                                library = library,
-                                account = account,
-                                importer = importer,
-                                tunnel = tunnel,
-                                onRetryDownloads = offline::retryFailed,
-                                contentPadding = padding,
-                                openPlaylistId = openPlaylistId,
-                                onOpenPlaylist = { openPlaylistId = it },
-                                onPlay = connection::play,
-                                onShuffle = connection::shuffleAll,
-                                onSignIn = { signingIn = true },
-                            )
+                    label = "artist",
+                ) { shownArtist ->
+                    if (shownArtist != null) {
+                        ArtistScreen(
+                            viewModel = artistViewModel,
+                            request = shownArtist,
+                            contentPadding = padding,
+                            onBack = { artist = null },
+                            onPlay = connection::play,
+                            onShuffle = connection::shuffleAll,
+                        )
+                    } else {
+                        AnimatedContent(
+                            targetState = tab,
+                            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                            label = "tabs",
+                        ) { shown ->
+                            tabStates.SaveableStateProvider(shown) {
+                                when (shown) {
+                                    Tab.HOME -> HomeScreen(homeViewModel, library, padding)
+                                    Tab.SEARCH -> SearchScreen(searchViewModel, padding)
+                                    Tab.LIBRARY -> LibraryScreen(
+                                        library = library,
+                                        account = account,
+                                        importer = importer,
+                                        tunnel = tunnel,
+                                        onRetryDownloads = offline::retryFailed,
+                                        contentPadding = padding,
+                                        openPlaylistId = openPlaylistId,
+                                        onOpenPlaylist = { openPlaylistId = it },
+                                        onPlay = connection::play,
+                                        onShuffle = connection::shuffleAll,
+                                        onSignIn = { signingIn = true },
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -203,6 +240,18 @@ fun OnerylApp(
                     isLiked = currentLiked,
                     onToggleLike = toggleCurrentLike,
                     onClose = { playerOpen = false },
+                )
+            }
+
+            artistChoice?.let { choice ->
+                ArtistSourceDialog(
+                    name = choice.name,
+                    onPick = { source ->
+                        artist = choice.on(source)
+                        artistChoice = null
+                        playerOpen = false
+                    },
+                    onDismiss = { artistChoice = null },
                 )
             }
 

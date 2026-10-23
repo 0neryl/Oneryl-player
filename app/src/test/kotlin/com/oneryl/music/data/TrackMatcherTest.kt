@@ -11,6 +11,9 @@ class TrackMatcherTest {
     private fun yt(id: String, title: String, artist: String, seconds: Long) =
         Track(MusicSource.YOUTUBE_MUSIC, id, title, artist, seconds, null)
 
+    private fun sc(id: String, title: String, artist: String, seconds: Long) =
+        Track(MusicSource.SOUNDCLOUD, id, title, artist, seconds, null)
+
     private fun yandex(title: String, vararg artists: String, seconds: Long = 0, version: String? = null) =
         ImportedTrack(title, artists.toList(), version, seconds)
 
@@ -83,5 +86,50 @@ class TrackMatcherTest {
             listOf(yt("r", "Believer (Remix)", "Imagine Dragons", 210), yt("o", "Believer", "Imagine Dragons", 204)),
         )
         assertEquals("a remix asked for is a remix found", "r", remix?.id)
+    }
+
+    @Test
+    fun bothServicesAreSearchedAndTheClearlyBetterMatchWins() = runBlocking {
+        val track = yandex("Группа крови", "Кино", seconds = 267)
+        val youtubeOnlyLive = TrackMatcher(
+            listOf(
+                { _ -> listOf(yt("live", "Кино - Группа крови (Live)", "Fan channel", 300)) },
+                { _ -> listOf(sc("kino/gruppa-krovi", "Группа крови", "Кино", 267)) },
+            ),
+        )
+        assertEquals("kino/gruppa-krovi", youtubeOnlyLive.find(track)?.id)
+
+        val both = TrackMatcher(
+            listOf(
+                { _ -> listOf(yt("yt", "Группа крови", "Кино", 268)) },
+                { _ -> listOf(sc("kino/gruppa-krovi", "Группа крови", "Кино", 267)) },
+            ),
+        )
+        assertEquals("a song both have comes from the first service", "yt", both.find(track)?.id)
+    }
+
+    @Test
+    fun aServiceThatFailedOnlyMattersWhenNoOtherFoundTheTrack() = runBlocking {
+        val track = yandex("Believer", "Imagine Dragons", seconds = 204)
+        val youtubeDown = TrackMatcher(
+            listOf(
+                { _ -> throw java.io.IOException("no route") },
+                { _ -> listOf(sc("id/believer", "Believer", "Imagine Dragons", 204)) },
+            ),
+        )
+        assertEquals("id/believer", youtubeDown.find(track)?.id)
+
+        val nothingElse = TrackMatcher(listOf({ _ -> throw java.io.IOException("no route") }, { _ -> emptyList() }))
+        val failure = runCatching { nothingElse.find(track) }.exceptionOrNull()
+        assertTrue("the search is tried again later", failure is java.io.IOException)
+    }
+
+    @Test
+    fun aSoundCloudPreviewIsNoMatch() {
+        val match = TrackMatcher.best(
+            yandex("Believer", "Imagine Dragons", seconds = 204),
+            listOf(sc("id/believer", "Believer", "Imagine Dragons", 30)),
+        )
+        assertNull(match)
     }
 }

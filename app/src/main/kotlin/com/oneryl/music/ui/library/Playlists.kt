@@ -107,7 +107,7 @@ private fun playlistSummary(playlist: Playlist): String {
 @Composable
 internal fun PlaylistScreen(
     playlist: Playlist,
-    waitingForYoutube: Boolean,
+    waitingForNetwork: Boolean,
     contentPadding: PaddingValues,
     onBack: () -> Unit,
     onPlay: (List<Track>, Int) -> Unit,
@@ -115,6 +115,7 @@ internal fun PlaylistScreen(
     onLikeAll: (List<Track>) -> Unit,
     onOffline: (Boolean) -> Unit,
     onRetryDownloads: () -> Unit,
+    onSearchAgain: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val tracks = remember(playlist) { playlist.tracks }
@@ -186,7 +187,7 @@ internal fun PlaylistScreen(
             }
         }
         if (playlist.pendingCount > 0) {
-            item { SearchProgress(playlist, waitingForYoutube) }
+            item { SearchProgress(playlist, waitingForNetwork) }
         }
         if (tracks.isNotEmpty()) {
             item {
@@ -207,11 +208,22 @@ internal fun PlaylistScreen(
         }
         if (missing.isNotEmpty()) {
             item {
-                Text(
-                    stringResource(R.string.playlist_missing, missing.size),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 4.dp),
-                )
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.playlist_missing, missing.size),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    // While the search runs it gets to these lines anyway.
+                    if (playlist.pendingCount == 0) {
+                        TextButton(onClick = onSearchAgain, modifier = Modifier.testTag("playlist_search_again")) {
+                            Text(stringResource(R.string.playlist_search_again))
+                        }
+                    }
+                }
                 Text(
                     stringResource(R.string.playlist_missing_hint),
                     style = MaterialTheme.typography.bodySmall,
@@ -270,14 +282,14 @@ internal fun PlaylistScreen(
 }
 
 @Composable
-private fun SearchProgress(playlist: Playlist, waitingForYoutube: Boolean) {
+private fun SearchProgress(playlist: Playlist, waitingForNetwork: Boolean) {
     val total = playlist.entries.size
     val done = total - playlist.pendingCount
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Text(stringResource(R.string.playlist_searching, done, total), style = MaterialTheme.typography.bodyMedium)
         Spacer(Modifier.height(8.dp))
         LinearProgressIndicator(progress = { done.toFloat() / total }, modifier = Modifier.fillMaxWidth())
-        if (waitingForYoutube) {
+        if (waitingForNetwork) {
             Spacer(Modifier.height(8.dp))
             Text(
                 stringResource(R.string.playlist_waiting),

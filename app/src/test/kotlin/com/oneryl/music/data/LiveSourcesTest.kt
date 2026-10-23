@@ -75,9 +75,12 @@ class LiveSourcesTest {
     }
 
     @Test
-    fun importedTracksAreFoundOnYoutubeMusic() = runBlocking {
+    fun importedTracksAreFoundOnYoutubeMusicOrSoundCloud() = runBlocking {
         val catalog = MusicCatalog()
-        val matcher = TrackMatcher { catalog.search(MusicSource.YOUTUBE_MUSIC, it) }
+        val matcher = TrackMatcher(
+            listOf(MusicSource.YOUTUBE_MUSIC, MusicSource.SOUNDCLOUD)
+                .map<MusicSource, suspend (String) -> List<Track>> { source -> { query -> catalog.search(source, query) } },
+        )
         val tracks = listOf(
             ImportedTrack("Believer", listOf("Imagine Dragons"), durationSeconds = 204),
             ImportedTrack("Положение", listOf("Скриптонит"), durationSeconds = 230),
@@ -87,5 +90,22 @@ class LiveSourcesTest {
         val found = tracks.map { it to matcher.find(it) }
         found.forEach { (source, match) -> println("${source.query} -> $match") }
         assertTrue("most tracks are found", found.count { it.second != null } >= 3)
+    }
+
+    @Test
+    fun artistsHaveTracksOnBothServices() = runBlocking {
+        val catalog = MusicCatalog()
+        val youtube = catalog.artist(ArtistRequest(MusicSource.YOUTUBE_MUSIC, "Imagine Dragons"))
+        println("YouTube: ${youtube?.name} ${youtube?.followers} ${youtube?.avatarUrl} ${youtube?.tracks?.take(3)}")
+        val duo = catalog.artist(ArtistRequest(MusicSource.YOUTUBE_MUSIC, "Simon & Garfunkel"))
+        println("Duo: ${duo?.name} ${duo?.tracks?.take(2)}")
+        val featured = catalog.artist(ArtistRequest(MusicSource.SOUNDCLOUD, "Miyagi, Andy Panda"))
+        println("Featured: ${featured?.name} ${featured?.followers} ${featured?.tracks?.take(2)}")
+        val soundCloud = catalog.artist(ArtistRequest(MusicSource.SOUNDCLOUD, "madk1d"))
+        println("SoundCloud: ${soundCloud?.name} ${soundCloud?.followers} ${soundCloud?.avatarUrl} ${soundCloud?.tracks?.take(3)}")
+        assertTrue("YouTube Music has Imagine Dragons songs", youtube?.tracks.orEmpty().isNotEmpty())
+        assertTrue("SoundCloud has madk1d tracks", soundCloud?.tracks.orEmpty().isNotEmpty())
+        assertEquals("a duo is one act", "Simon & Garfunkel", duo?.name)
+        assertTrue("several artists fall back to the first", featured?.name.orEmpty().contains("Miyagi", ignoreCase = true))
     }
 }

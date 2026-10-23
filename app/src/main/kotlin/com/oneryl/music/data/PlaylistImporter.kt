@@ -17,10 +17,11 @@ import java.io.IOException
 
 /**
  * Brings playlists over from Yandex Music. The track list comes at once; the
- * search for each track on YouTube Music runs in the background, one track at
- * a time, and survives restarts, since the lines still to find are saved with
- * the playlist. Yandex Music answers only without a VPN and YouTube often only
- * with one, so when YouTube cannot be reached the search waits and tries again.
+ * search for each track on YouTube Music and SoundCloud runs in the
+ * background, one track at a time, and survives restarts, since the lines
+ * still to find are saved with the playlist. Yandex Music answers only without
+ * a VPN and YouTube often only with one, so when the services cannot be
+ * reached the search waits and tries again.
  */
 class PlaylistImporter(
     private val yandex: YandexMusic,
@@ -33,10 +34,10 @@ class PlaylistImporter(
 ) {
     private var job: Job? = null
 
-    private val _waitingForYoutube = MutableStateFlow(false)
+    private val _waitingForNetwork = MutableStateFlow(false)
 
-    /** True while the search cannot reach YouTube and waits to try again. */
-    val waitingForYoutube: StateFlow<Boolean> = _waitingForYoutube.asStateFlow()
+    /** True while the search cannot reach the services and waits to try again. */
+    val waitingForNetwork: StateFlow<Boolean> = _waitingForNetwork.asStateFlow()
 
     /** Reads the playlist [link] points to and starts looking for its tracks; returns the playlist id. */
     suspend fun import(link: String): String {
@@ -44,6 +45,12 @@ class PlaylistImporter(
         library.putPlaylist(playlist)
         resume()
         return playlist.id
+    }
+
+    /** Looks again for the tracks of playlist [id] that were not found: the services keep adding music. */
+    fun searchMissingAgain(id: String) {
+        library.searchMissingAgain(id)
+        resume()
     }
 
     /** Looks for the tracks earlier imports did not get to, if any. */
@@ -64,9 +71,9 @@ class PlaylistImporter(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // No network or YouTube turning requests away: wait for it. A query that keeps
-                // breaking the parser while the rest of YouTube works is given up on.
-                _waitingForYoutube.value = true
+                // No network or a service turning requests away: wait for it. A query that keeps
+                // breaking the parser while the rest of the service works is given up on.
+                _waitingForNetwork.value = true
                 failures++
                 Log.w(TAG, "Search failed (${e.javaClass.simpleName}), retrying")
                 val waitable = e is IOException || e is ReCaptchaException
@@ -78,11 +85,11 @@ class PlaylistImporter(
                 continue
             }
             failures = 0
-            _waitingForYoutube.value = false
+            _waitingForNetwork.value = false
             library.settle(entry, track)
             delay(pauseMs)
         }
-        _waitingForYoutube.value = false
+        _waitingForNetwork.value = false
     }
 
     private companion object {

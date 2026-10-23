@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Installs the APK on the running emulator, searches SoundCloud, plays the
-# first result and checks that the media session reports it as playing. Then
-# tries the same with YouTube Music, which may refuse a data-centre IP, so a
-# failure there is only a warning. Finally the SoundCloud track, liked along
-# the way, must play from the Library with the network off, and the YouTube
-# sign-in page and the Yandex Music import must open, and a track must play
-# through the app's own Xray core. Leaves screenshots and logcat.txt behind.
+# first result and checks that the media session reports it as playing, and
+# that its uploader opens as an artist. Then tries the same with YouTube
+# Music, which may refuse a data-centre IP, so a failure there is only a
+# warning. Finally the SoundCloud track, liked along the way, must play from
+# the Library with the network off, and the YouTube sign-in page and the
+# Yandex Music import must open, and a track must play through the app's own
+# Xray core. Leaves screenshots and logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -171,6 +172,25 @@ elif play_first_result "SoundCloud" "lofi"; then
   sleep 2
   # Liking the track downloads it; the offline check at the end plays it back.
   tap "Like"
+
+  # Tapping the artist of a result asks for the service and opens their page;
+  # on SoundCloud that is the uploader of the track, without a search.
+  if tap "track_artist" && tap "artist_on_soundcloud"; then
+    sleep 8
+    adb exec-out screencap -p > screenshot-artist.png
+    if [ -n "$(find_node "artist_screen")" ] && [ -n "$(find_node "track_row")" ]; then
+      echo "The artist page opened with their tracks"
+    else
+      echo "::error::The artist page did not open with tracks; see screenshot-artist.png"
+      STATUS=1
+    fi
+    adb shell input keyevent KEYCODE_BACK
+    sleep 2
+  else
+    adb exec-out screencap -p > screenshot-artist.png
+    echo "::error::Tapping the artist did not offer the services"
+    STATUS=1
+  fi
 
   # Pause first, so the check below cannot see the SoundCloud track still playing.
   adb shell input keyevent KEYCODE_MEDIA_PAUSE

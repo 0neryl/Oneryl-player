@@ -45,7 +45,7 @@ class PlaylistImporterTest {
                     calls == 1 -> throw IOException("no network")
                     "Nothing" in query -> emptyList()
                     else -> {
-                        sawWaiting = sawWaiting || importer.waitingForYoutube.value
+                        sawWaiting = sawWaiting || importer.waitingForNetwork.value
                         listOf(Track(MusicSource.YOUTUBE_MUSIC, query.substringAfterLast(' '), query.substringAfterLast(' '), "Imagine Dragons", 200, null))
                     }
                 }
@@ -53,7 +53,7 @@ class PlaylistImporterTest {
             importer = PlaylistImporter(YandexMusic(OkHttpClient()), matcher, library, scope, Dispatchers.Default, retryDelayMs = 10, pauseMs = 0)
             importer.resume()
             withTimeout(5_000) {
-                while (library.nextPending() != null || importer.waitingForYoutube.value) delay(10)
+                while (library.nextPending() != null || importer.waitingForNetwork.value) delay(10)
             }
 
             val playlist = library.state.value.playlists.single()

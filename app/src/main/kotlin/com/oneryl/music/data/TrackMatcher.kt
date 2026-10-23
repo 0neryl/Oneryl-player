@@ -1,22 +1,61 @@
 package com.oneryl.music.data
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlin.math.abs
 
 /**
- * Finds a track from another service on YouTube Music: searches for its
- * artists and title and takes the result whose title, artist and length agree
- * best. Names are compared transliterated, since the same artist may be
- * written in Cyrillic on one service and in Latin on the other.
+ * Finds a track from another service on the services the app plays from:
+ * searches each of them for its artists and title at once and takes the
+ * result whose title, artist and length agree best. Names are compared
+ * transliterated, since the same artist may be written in Cyrillic on one
+ * service and in Latin on the other.
+ *
+ * [searches] go in order of preference: a later service wins only with a
+ * clearly better match, so a song both have plays from the first.
  */
-class TrackMatcher(private val search: suspend (String) -> List<Track>) {
+class TrackMatcher(private val searches: List<suspend (String) -> List<Track>>) {
 
-    suspend fun find(track: ImportedTrack): Track? = best(track, search(track.query))
+    constructor(search: suspend (String) -> List<Track>) : this(listOf(search))
+
+    /**
+     * The best match on any service, or null if none has one. A service that
+     * could not be searched only matters when no other found the track: then
+     * its error is thrown, as the track may well be there.
+     */
+    suspend fun find(track: ImportedTrack): Track? = coroutineScope {
+        val results = searches.map { search ->
+            async {
+                try {
+                    Result.success(search(track.query))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Result.failure(e)
+                }
+            }
+        }.awaitAll()
+        var best: Scored? = null
+        for (result in results) {
+            val match = result.getOrNull()?.let { scored(track, it) } ?: continue
+            if (best == null || match.score > best.score + PREFERENCE_MARGIN) best = match
+        }
+        best?.track ?: results.firstNotNullOfOrNull { it.exceptionOrNull() }?.let { throw it }
+    }
+
+    private class Scored(val track: Track, val score: Double)
 
     companion object {
         private const val THRESHOLD = 0.5
         private const val FIRST_RESULT_BONUS = 0.1
         private const val CANDIDATES = 10
         private const val OTHER_VERSION_PENALTY = 0.2
+        private const val PREFERENCE_MARGIN = 0.1
+
+        /** SoundCloud plays only this much of a Go+ track to listeners without the subscription. */
+        private const val PREVIEW_SECONDS = 30L
 
         /** Words that mark another recording of a song; they count against it unless the original has them. */
         private val OTHER_VERSIONS = setOf(
@@ -30,14 +69,22 @@ class TrackMatcher(private val search: suspend (String) -> List<Track>) {
             "visualizer", "klip", "ofitsialnyy", "premera",
         )
 
-        fun best(track: ImportedTrack, candidates: List<Track>): Track? =
+        fun best(track: ImportedTrack, candidates: List<Track>): Track? = scored(track, candidates)?.track
+
+        private fun scored(track: ImportedTrack, candidates: List<Track>): Scored? =
             candidates.take(CANDIDATES)
-                .mapIndexed { index, candidate ->
-                    candidate to score(track, candidate) + if (index == 0) FIRST_RESULT_BONUS else 0.0
+                .mapIndexedNotNull { index, candidate ->
+                    if (isPreview(track, candidate)) return@mapIndexedNotNull null
+                    Scored(candidate, score(track, candidate) + if (index == 0) FIRST_RESULT_BONUS else 0.0)
                 }
-                .filter { (_, score) -> score >= THRESHOLD }
-                .maxByOrNull { (_, score) -> score }
-                ?.first
+                .filter { it.score >= THRESHOLD }
+                .maxByOrNull { it.score }
+
+        /** SoundCloud lists a Go+ track as its 30-second preview, which is all that would play. */
+        private fun isPreview(track: ImportedTrack, candidate: Track): Boolean =
+            candidate.source == MusicSource.SOUNDCLOUD &&
+                candidate.durationSeconds == PREVIEW_SECONDS &&
+                abs(track.durationSeconds - PREVIEW_SECONDS) > 2
 
         /** From 0 to 1: how sure [candidate] is the same recording as [track]. */
         fun score(track: ImportedTrack, candidate: Track): Double {

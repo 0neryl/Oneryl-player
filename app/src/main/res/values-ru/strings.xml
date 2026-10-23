@@ -77,16 +77,17 @@
     <string name="import_link">Ссылка на плейлист</string>
     <string name="import_action">Импортировать</string>
     <string name="import_error_link">Это не ссылка на плейлист Яндекс Музыки</string>
-    <string name="import_error_region">Яндекс Музыка не открывается через VPN. Выключите VPN, импортируйте плейлист и включите VPN обратно: треки найдутся на YouTube сами.</string>
+    <string name="import_error_region">Яндекс Музыка не открывается через VPN. Выключите VPN, импортируйте плейлист и включите VPN обратно: треки найдутся сами.</string>
     <string name="import_error_not_found">Плейлист не найден. Проверьте ссылку и что плейлист открыт для всех.</string>
     <string name="import_error_network">Не удаётся связаться с Яндекс Музыкой. Проверьте подключение.</string>
     <string name="import_error_unexpected">Яндекс Музыка ответила неожиданно (%s)</string>
     <string name="playlist_from_yandex">Яндекс Музыка</string>
-    <string name="playlist_searching">Ищу на YouTube: %1$d из %2$d</string>
-    <string name="playlist_waiting">YouTube не отвечает. Включите VPN, и поиск продолжится сам.</string>
-    <string name="playlist_missing">Не нашлось на YouTube: %d</string>
+    <string name="playlist_searching">Ищу на YouTube и SoundCloud: %1$d из %2$d</string>
+    <string name="playlist_waiting">YouTube и SoundCloud не отвечают. Включите VPN или подключите свой сервер в Библиотеке, и поиск продолжится сам.</string>
+    <string name="playlist_missing">Не нашлось ни на YouTube, ни на SoundCloud: %d</string>
     <string name="playlist_missing_short">не нашлось: %d</string>
     <string name="playlist_missing_hint">Их можно поискать вручную в «Поиске».</string>
+    <string name="playlist_search_again">Поискать снова</string>
     <string name="playlist_like_all">Добавить всё в любимые</string>
     <string name="playlist_delete">Удалить плейлист</string>
     <string name="playlist_delete_title">Удалить «%s»?</string>
@@ -107,6 +108,12 @@
     <string name="like">Нравится</string>
     <string name="unlike">Убрать из любимых</string>
     <string name="more">Ещё</string>
+
+    <string name="artist_open">Об артисте</string>
+    <string name="artist_where">Где открыть артиста?</string>
+    <string name="artist_followers">подписчики: %s</string>
+    <string name="artist_not_found">На %s нет артиста с таким именем</string>
+    <string name="artist_no_tracks">Треков здесь пока нет</string>
 
     <string name="now_playing">Сейчас играет</string>
     <string name="queue">Очередь</string>
