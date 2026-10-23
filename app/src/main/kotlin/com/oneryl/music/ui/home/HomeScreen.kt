@@ -24,6 +24,8 @@ import com.oneryl.music.ui.components.MessageBlock
 import com.oneryl.music.ui.components.ScreenTitle
 import com.oneryl.music.ui.components.SectionTitle
 import com.oneryl.music.ui.components.TrackCarousel
+import com.oneryl.music.ui.update.UpdateCard
+import com.oneryl.music.update.AppUpdater
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,13 +58,14 @@ class HomeViewModel(private val catalog: MusicCatalog) : ViewModel() {
 }
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, library: LibraryStore, contentPadding: PaddingValues) {
+fun HomeScreen(viewModel: HomeViewModel, library: LibraryStore, updater: AppUpdater, contentPadding: PaddingValues) {
     val data by library.state.collectAsStateWithLifecycle()
     val youtube by viewModel.charts(MusicSource.YOUTUBE_MUSIC).collectAsStateWithLifecycle()
     val soundCloud by viewModel.charts(MusicSource.SOUNDCLOUD).collectAsStateWithLifecycle()
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
         item { ScreenTitle(stringResource(R.string.app_name)) }
+        item { UpdateCard(updater) }
         if (data.recent.isNotEmpty()) {
             item { SectionTitle(stringResource(R.string.home_recent)) }
             item { TrackCarousel(data.recent.take(20)) }

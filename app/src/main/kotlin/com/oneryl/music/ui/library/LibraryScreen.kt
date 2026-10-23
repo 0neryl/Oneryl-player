@@ -54,6 +54,8 @@ import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
 import com.oneryl.music.ui.components.ScreenTitle
 import com.oneryl.music.ui.components.TrackRow
+import com.oneryl.music.ui.update.UpdateRow
+import com.oneryl.music.update.AppUpdater
 
 private enum class LibrarySection { LIKED, PLAYLISTS, HISTORY }
 
@@ -63,6 +65,7 @@ fun LibraryScreen(
     account: YoutubeAccount,
     importer: PlaylistImporter,
     tunnel: ServerTunnel,
+    updater: AppUpdater,
     onRetryDownloads: () -> Unit,
     contentPadding: PaddingValues,
     openPlaylistId: String?,
@@ -107,6 +110,7 @@ fun LibraryScreen(
         item { ScreenTitle(stringResource(R.string.tab_library)) }
         item { AccountRow(session, onSignIn = onSignIn, onSignOut = { confirmSignOut = true }) }
         item { ServerRow(tunnel) }
+        item { UpdateRow(updater) }
         item {
             Row(
                 Modifier

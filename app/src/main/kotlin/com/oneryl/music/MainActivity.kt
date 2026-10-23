@@ -57,9 +57,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Looks for a new version each time the app comes to the screen, at most every few hours.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) { app.updater.checkIfDue() }
+        }
+
         setContent {
             OnerylTheme {
-                OnerylApp(app.catalog, app.library, app.offline, app.account, app.importer, app.tunnel, connection)
+                OnerylApp(app.catalog, app.library, app.offline, app.account, app.importer, app.tunnel, app.updater, connection)
             }
         }
     }

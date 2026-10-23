@@ -6,7 +6,8 @@
 # warning. Finally the SoundCloud track, liked along the way, must play from
 # the Library with the network off, and the YouTube sign-in page and the
 # Yandex Music import must open, and a track must play through the app's own
-# Xray core. Leaves screenshots and logcat.txt behind.
+# Xray core. Last, a build marked 0.0.1 must update itself to the latest
+# release. Leaves screenshots and logcat.txt behind.
 set -u
 
 PACKAGE=com.oneryl.music
@@ -75,6 +76,49 @@ play_first_result() {
   sleep 3
   tap "track_row" || return 1
   wait_for_playback
+}
+
+installed_version() {
+  adb shell dumpsys package "$PACKAGE" | grep -m 1 -o 'versionName=[^ ]*' | cut -d= -f2 | tr -d '\r'
+}
+
+# Puts this build, marked 0.0.1, in place of the real one and has it update
+# itself to the latest GitHub release, as it would on a phone.
+update_from_old_build() {
+  local old latest
+  old=$(ls apk-old/*.apk 2>/dev/null | head -n 1)
+  if [ -z "$old" ]; then
+    echo "::warning::No old build to test updating with; it needs the release key"
+    return 0
+  fi
+  latest=$(curl -sS "https://api.github.com/repos/0neryl/Oneryl-player/releases/latest" |
+    python3 -c 'import json, sys; print(json.load(sys.stdin).get("tag_name", "").lstrip("v"))')
+  if [ -z "$latest" ]; then
+    echo "::warning::Could not read the latest release, so the update was not tested"
+    return 0
+  fi
+  adb uninstall "$PACKAGE" > /dev/null
+  adb install "$old" || return 1
+  # What a person allows once on a phone: installing apps, and notifications.
+  adb shell appops set "$PACKAGE" REQUEST_INSTALL_PACKAGES allow
+  adb shell pm grant "$PACKAGE" android.permission.POST_NOTIFICATIONS 2> /dev/null
+  adb shell am start -n "$PACKAGE/.MainActivity" > /dev/null
+  echo "Installed $(installed_version); the latest release is $latest"
+  tap "update_action" || return 1
+  for _ in $(seq 1 60); do
+    if [ "$(installed_version)" = "$latest" ]; then
+      echo "The app updated itself to $latest"
+      return 0
+    fi
+    # Where Android does not let the app update itself, its installer asks first.
+    if adb shell dumpsys activity activities | grep -m 1 -E "mResumedActivity|topResumedActivity" | grep -q "packageinstaller"; then
+      echo "Android asks to confirm the update"
+      tap "Update" || tap "Install"
+    fi
+    sleep 5
+  done
+  echo "Still $(installed_version) after waiting for the update"
+  return 1
 }
 
 # Waits for the liked SoundCloud track to download, cuts the network and plays
@@ -229,6 +273,19 @@ elif play_first_result "SoundCloud" "lofi"; then
     echo "::warning::The YouTube sign-in button was not found"
   fi
 
+  # This build is newer than any release, so the check finds nothing to install.
+  if tap "update_check"; then
+    sleep 8
+    if [ -n "$(find_node "update_latest")" ]; then
+      echo "The update check reached GitHub: this is the latest version"
+    else
+      adb exec-out screencap -p > screenshot-update-check.png
+      echo "::warning::The update check did not answer; see screenshot-update-check.png"
+    fi
+  else
+    echo "::warning::The update check button was not found"
+  fi
+
   # Yandex Music serves only Russia and nearby countries, so from here the
   # import must end in the hint to turn the VPN off.
   if tap "Playlists" && tap "import_yandex" && tap "import_link"; then
@@ -255,6 +312,14 @@ elif play_first_result "SoundCloud" "lofi"; then
     STATUS=1
   fi
   adb logcat -d | grep -E "ServerTunnel|GoLog" | tail -n 20
+
+  adb shell input keyevent KEYCODE_MEDIA_PAUSE
+  if ! update_from_old_build; then
+    adb exec-out screencap -p > screenshot-update.png
+    adb logcat -d | grep -E "AppUpdater|UpdateInstallReceiver|PackageInstaller" | tail -n 30
+    echo "::error::The old build did not update itself to the latest release"
+    STATUS=1
+  fi
 else
   adb exec-out screencap -p > screenshot-failed.png
   echo "::error::The SoundCloud track did not start playing"

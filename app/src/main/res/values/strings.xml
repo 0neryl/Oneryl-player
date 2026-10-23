@@ -115,6 +115,26 @@
     <string name="artist_not_found">%s has no artist by this name</string>
     <string name="artist_no_tracks">No tracks here yet</string>
 
+    <string name="update_available">Version %s is available</string>
+    <string name="update_available_hint">You have %s. Updating closes the app for a moment; your library stays.</string>
+    <string name="update_action">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading: %d%%</string>
+    <string name="update_installing">Installing. The app will close and update.</string>
+    <string name="update_confirm_hint">Android asks to confirm the installation.</string>
+    <string name="update_install">Install</string>
+    <string name="update_failed_download">Couldn\'t download the update. Check your connection.</string>
+    <string name="update_failed_install">Android did not install the update</string>
+    <string name="update_version">Oneryl %s</string>
+    <string name="update_auto">New versions are looked for every few hours</string>
+    <string name="update_checking">Looking for a new version…</string>
+    <string name="update_latest">This is the latest version</string>
+    <string name="update_check_failed">Couldn\'t check for updates</string>
+    <string name="update_check">Check</string>
+    <string name="update_done_title">Oneryl updated to %s</string>
+    <string name="update_done_text">Tap to open</string>
+    <string name="updates_channel">Updates</string>
+
     <string name="now_playing">Now playing</string>
     <string name="queue">Queue</string>
     <string name="up_next">Up next</string>

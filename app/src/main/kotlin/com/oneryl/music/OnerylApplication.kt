@@ -25,6 +25,7 @@ import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineTracks
 import com.oneryl.music.playback.PlayerDataSourceFactory
 import com.oneryl.music.playback.youtube.InnerTubeXSource
+import com.oneryl.music.update.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +78,8 @@ class OnerylApplication : Application(), SingletonImageLoader.Factory {
             scope,
         )
     }
+
+    val updater: AppUpdater by lazy { AppUpdater(this, httpClient, scope) }
 
     private val database by lazy { StandaloneDatabaseProvider(this) }
     private val streamCache by lazy {

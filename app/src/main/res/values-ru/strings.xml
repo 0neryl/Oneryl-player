@@ -115,6 +115,26 @@
     <string name="artist_not_found">На %s нет артиста с таким именем</string>
     <string name="artist_no_tracks">Треков здесь пока нет</string>
 
+    <string name="update_available">Доступна версия %s</string>
+    <string name="update_available_hint">Сейчас стоит %s. Приложение закроется на пару секунд и обновится, библиотека сохранится.</string>
+    <string name="update_action">Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Скачиваю: %d%%</string>
+    <string name="update_installing">Устанавливаю. Приложение закроется и обновится.</string>
+    <string name="update_confirm_hint">Android просит подтвердить установку.</string>
+    <string name="update_install">Установить</string>
+    <string name="update_failed_download">Не удалось скачать обновление. Проверьте подключение.</string>
+    <string name="update_failed_install">Android не установил обновление</string>
+    <string name="update_version">Oneryl %s</string>
+    <string name="update_auto">Новые версии ищутся сами раз в несколько часов</string>
+    <string name="update_checking">Ищу новую версию…</string>
+    <string name="update_latest">Это последняя версия</string>
+    <string name="update_check_failed">Не удалось проверить обновления</string>
+    <string name="update_check">Проверить</string>
+    <string name="update_done_title">Oneryl обновлён до %s</string>
+    <string name="update_done_text">Нажмите, чтобы открыть</string>
+    <string name="updates_channel">Обновления</string>
+
     <string name="now_playing">Сейчас играет</string>
     <string name="queue">Очередь</string>
     <string name="up_next">Далее</string>

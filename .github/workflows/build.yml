@@ -98,8 +98,27 @@ jobs:
           retention-days: 14
           path: dist/*.apk
 
+      # The emulator test installs this build as version 0.0.1 and lets it
+      # update itself to the latest release, which takes the releases' key.
+      - name: Build an old version for the update test
+        if: env.ONERYL_KEYSTORE != ''
+        run: |
+          ./gradlew --no-daemon :app:assembleRelease -Poneryl.version=0.0.1
+          mkdir -p dist-old
+          cp app/build/outputs/apk/release/app-release.apk dist-old/Oneryl-0.0.1.apk
+
+      - name: Upload the old version
+        if: env.ONERYL_KEYSTORE != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: apk-old
+          if-no-files-found: error
+          retention-days: 3
+          path: dist-old/*.apk
+
   # Launches the APK on an emulator, plays a SoundCloud track and checks that
-  # Android reports it as playing. Screenshots and logcat are kept.
+  # Android reports it as playing, then has an old build update itself.
+  # Screenshots and logcat are kept.
   smoke-test:
     needs: build
     runs-on: ubuntu-latest
@@ -113,6 +132,14 @@ jobs:
         with:
           name: apk
           path: apk
+
+      # Missing when the build had no release key; the update test is skipped then.
+      - name: Download the old version
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: apk-old
+          path: apk-old
 
       - name: Enable KVM
         run: |

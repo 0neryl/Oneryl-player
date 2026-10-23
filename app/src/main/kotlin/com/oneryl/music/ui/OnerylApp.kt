@@ -71,6 +71,7 @@ import com.oneryl.music.ui.player.MiniPlayer
 import com.oneryl.music.ui.player.PlayerScreen
 import com.oneryl.music.ui.search.SearchScreen
 import com.oneryl.music.ui.search.SearchViewModel
+import com.oneryl.music.update.AppUpdater
 import kotlinx.coroutines.launch
 
 enum class Tab(val title: Int, val icon: ImageVector, val selectedIcon: ImageVector) {
@@ -88,6 +89,7 @@ fun OnerylApp(
     account: YoutubeAccount,
     importer: PlaylistImporter,
     tunnel: ServerTunnel,
+    updater: AppUpdater,
     connection: PlayerConnection,
 ) {
     val player by connection.state.collectAsStateWithLifecycle()
@@ -207,13 +209,14 @@ fun OnerylApp(
                         ) { shown ->
                             tabStates.SaveableStateProvider(shown) {
                                 when (shown) {
-                                    Tab.HOME -> HomeScreen(homeViewModel, library, padding)
+                                    Tab.HOME -> HomeScreen(homeViewModel, library, updater, padding)
                                     Tab.SEARCH -> SearchScreen(searchViewModel, padding)
                                     Tab.LIBRARY -> LibraryScreen(
                                         library = library,
                                         account = account,
                                         importer = importer,
                                         tunnel = tunnel,
+                                        updater = updater,
                                         onRetryDownloads = offline::retryFailed,
                                         contentPadding = padding,
                                         openPlaylistId = openPlaylistId,
