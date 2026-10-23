@@ -13,20 +13,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,15 +47,15 @@ import com.oneryl.music.data.LibraryStore
 import com.oneryl.music.data.PlaylistImporter
 import com.oneryl.music.data.Track
 import com.oneryl.music.data.YoutubeAccount
-import com.oneryl.music.data.YoutubeSession
 import com.oneryl.music.net.ServerTunnel
 import com.oneryl.music.playback.OfflineState
 import com.oneryl.music.ui.components.LocalTrackUi
 import com.oneryl.music.ui.components.MessageBlock
 import com.oneryl.music.ui.components.ScreenTitle
 import com.oneryl.music.ui.components.TrackRow
-import com.oneryl.music.ui.update.UpdateRow
+import com.oneryl.music.ui.settings.SettingsScreen
 import com.oneryl.music.update.AppUpdater
+import com.oneryl.music.update.UpdateState
 
 private enum class LibrarySection { LIKED, PLAYLISTS, HISTORY }
 
@@ -68,12 +68,20 @@ fun LibraryScreen(
     updater: AppUpdater,
     onRetryDownloads: () -> Unit,
     contentPadding: PaddingValues,
+    settingsOpen: Boolean,
+    onOpenSettings: (Boolean) -> Unit,
     openPlaylistId: String?,
     onOpenPlaylist: (String?) -> Unit,
     onPlay: (List<Track>, Int) -> Unit,
     onShuffle: (List<Track>) -> Unit,
     onSignIn: () -> Unit,
 ) {
+    // Kept above the screens opened from here, so closing them comes back to the same section.
+    var section by rememberSaveable { mutableStateOf(LibrarySection.LIKED) }
+    if (settingsOpen) {
+        SettingsScreen(account, tunnel, updater, contentPadding, onBack = { onOpenSettings(false) }, onSignIn = onSignIn)
+        return
+    }
     val data by library.state.collectAsStateWithLifecycle()
     val waitingForNetwork by importer.waitingForNetwork.collectAsStateWithLifecycle()
     val openPlaylist = openPlaylistId?.let { id -> data.playlists.firstOrNull { it.id == id } }
@@ -97,20 +105,25 @@ fun LibraryScreen(
         return
     }
 
-    val session by account.session.collectAsStateWithLifecycle()
-    var confirmSignOut by rememberSaveable { mutableStateOf(false) }
+    val update by updater.state.collectAsStateWithLifecycle()
     var importing by rememberSaveable { mutableStateOf(false) }
-    var section by rememberSaveable { mutableStateOf(LibrarySection.LIKED) }
     val tracks = if (section == LibrarySection.HISTORY) data.recent else data.liked
     val offline = LocalTrackUi.current.offline
     val readyOffline = tracks.count { offline[it.key] == OfflineState.READY }
     val failedOffline = tracks.count { offline[it.key] == OfflineState.FAILED }
 
     LazyColumn(state = rememberLazyListState(), contentPadding = contentPadding) {
-        item { ScreenTitle(stringResource(R.string.tab_library)) }
-        item { AccountRow(session, onSignIn = onSignIn, onSignOut = { confirmSignOut = true }) }
-        item { ServerRow(tunnel) }
-        item { UpdateRow(updater) }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ScreenTitle(stringResource(R.string.tab_library), Modifier.weight(1f))
+                IconButton(onClick = { onOpenSettings(true) }, modifier = Modifier.padding(end = 8.dp).testTag("settings")) {
+                    // A dot while a new version waits in the settings.
+                    BadgedBox(badge = { if (update is UpdateState.ForRelease) Badge(containerColor = MaterialTheme.colorScheme.primary) }) {
+                        Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))
+                    }
+                }
+            }
+        }
         item {
             Row(
                 Modifier
@@ -162,12 +175,15 @@ fun LibraryScreen(
             else -> {
                 item {
                     TracksHeader(
-                        summary = listOfNotNull(
-                            pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
-                            if (section == LibrarySection.LIKED) stringResource(R.string.offline_count, readyOffline) else null,
-                        ).joinToString(" • "),
+                        summary = pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
                         onPlay = { onPlay(tracks, 0) },
                         onShuffle = { onShuffle(tracks) },
+                        // Liked tracks download by themselves; the button fetches what failed.
+                        leading = if (section == LibrarySection.LIKED) {
+                            { OfflineButton(readyOffline, tracks.size, onDownload = onRetryDownloads) }
+                        } else {
+                            null
+                        },
                     )
                 }
                 if (section == LibrarySection.LIKED && failedOffline > 0) {
@@ -186,23 +202,6 @@ fun LibraryScreen(
                 onOpenPlaylist(id)
             },
             onDismiss = { importing = false },
-        )
-    }
-
-    if (confirmSignOut) {
-        AlertDialog(
-            onDismissRequest = { confirmSignOut = false },
-            title = { Text(stringResource(R.string.account_sign_out_title)) },
-            text = { Text(stringResource(R.string.account_sign_out_text)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmSignOut = false
-                    account.signOut()
-                }) { Text(stringResource(R.string.account_sign_out)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.cancel)) }
-            },
         )
     }
 }
@@ -226,72 +225,43 @@ internal fun DownloadsFailed(count: Int, onRetry: () -> Unit) {
     }
 }
 
-/** How many tracks a list holds, and buttons to play it in order or shuffled. */
+/**
+ * How many tracks a list holds, and buttons to play it in order or shuffled;
+ * [leading] goes before the count.
+ */
 @Composable
-internal fun TracksHeader(summary: String, onPlay: () -> Unit, onShuffle: () -> Unit) {
+internal fun TracksHeader(
+    summary: String,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    leading: (@Composable () -> Unit)? = null,
+) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(start = if (leading != null) 4.dp else 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(4.dp))
+        }
         Text(
             summary,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        OutlinedButton(onClick = onShuffle) {
-            Icon(Icons.Filled.Shuffle, contentDescription = null)
-            Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.shuffle))
+        OutlinedIconButton(onClick = onShuffle) {
+            Icon(Icons.Filled.Shuffle, contentDescription = stringResource(R.string.shuffle))
         }
         Spacer(Modifier.width(8.dp))
         Button(onClick = onPlay) {
             Icon(Icons.Filled.PlayArrow, contentDescription = null)
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.play_all))
-        }
-    }
-}
-
-/** The optional YouTube account: why to sign in, or whose account is in use. */
-@Composable
-private fun AccountRow(session: YoutubeSession?, onSignIn: () -> Unit, onSignOut: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Filled.AccountCircle,
-            contentDescription = null,
-            tint = if (session != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(40.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                when {
-                    session == null -> stringResource(R.string.account_youtube)
-                    else -> session.name ?: stringResource(R.string.account_signed_in)
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                if (session == null) stringResource(R.string.account_why) else stringResource(R.string.account_in_use),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        if (session == null) {
-            FilledTonalButton(onClick = onSignIn) { Text(stringResource(R.string.account_sign_in)) }
-        } else {
-            TextButton(onClick = onSignOut) { Text(stringResource(R.string.account_sign_out)) }
         }
     }
 }

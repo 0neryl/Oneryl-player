@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileDownloadOff
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
@@ -148,20 +147,17 @@ internal fun PlaylistScreen(
                                 onLikeAll(tracks)
                             },
                         )
-                        DropdownMenuItem(
-                            text = {
-                                Text(stringResource(if (playlist.offline) R.string.playlist_download_stop else R.string.playlist_download))
-                            },
-                            leadingIcon = {
-                                Icon(if (playlist.offline) Icons.Filled.FileDownloadOff else Icons.Filled.Download, null)
-                            },
-                            enabled = playlist.offline || tracks.isNotEmpty(),
-                            onClick = {
-                                menuOpen = false
-                                if (playlist.offline) onOffline(false) else confirmDownload = true
-                            },
-                            modifier = Modifier.testTag("playlist_download"),
-                        )
+                        // Downloading starts from the button over the tracks; stopping it lives here.
+                        if (playlist.offline) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.playlist_download_stop)) },
+                                leadingIcon = { Icon(Icons.Filled.FileDownloadOff, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onOffline(false)
+                                },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.playlist_delete)) },
                             leadingIcon = { Icon(Icons.Filled.Delete, null) },
@@ -192,12 +188,15 @@ internal fun PlaylistScreen(
         if (tracks.isNotEmpty()) {
             item {
                 TracksHeader(
-                    summary = listOfNotNull(
-                        pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
-                        if (playlist.offline) stringResource(R.string.offline_count, readyOffline) else null,
-                    ).joinToString(" • "),
+                    summary = pluralStringResource(R.plurals.tracks_count, tracks.size, tracks.size),
                     onPlay = { onPlay(tracks, 0) },
                     onShuffle = { onShuffle(tracks) },
+                    leading = {
+                        // The first tap keeps the playlist downloaded; later ones fetch what failed.
+                        OfflineButton(readyOffline, tracks.size) {
+                            if (playlist.offline) onRetryDownloads() else confirmDownload = true
+                        }
+                    },
                 )
             }
             if (playlist.offline && failedOffline > 0) {

@@ -164,6 +164,7 @@ play_offline() {
 play_through_own_server() {
   local config='[{"remarks":"CI","outbounds":[{"tag":"proxy","protocol":"freedom"}]}]'
   tap "Library" || return 1
+  tap "settings" || return 1
   tap "server_set_up" || return 1
   sleep 2
   if [ -z "$(find_node "xray_version")" ]; then
@@ -262,28 +263,46 @@ elif play_first_result "SoundCloud" "lofi"; then
   adb shell svc wifi enable
   adb shell svc data enable
 
-  # Nobody signs in here, but Google's sign-in page must at least open.
+  # The one liked track is downloaded, so the ring over Liked is full.
   sleep 10
-  if tap "Sign in"; then
-    sleep 20
-    adb exec-out screencap -p > screenshot-sign-in.png
+  adb exec-out screencap -p > screenshot-library.png
+  if [ -n "$(find_node "offline_complete")" ]; then
+    echo "The offline ring shows every liked track downloaded"
+  else
+    echo "::error::The offline ring does not show the liked track downloaded; see screenshot-library.png"
+    STATUS=1
+  fi
+
+  # The YouTube account, the own server and updates live behind the settings button.
+  if tap "settings"; then
+    # Nobody signs in here, but Google's sign-in page must at least open.
+    if tap "Sign in"; then
+      sleep 20
+      adb exec-out screencap -p > screenshot-sign-in.png
+      adb shell input keyevent KEYCODE_BACK
+      sleep 2
+    else
+      echo "::warning::The YouTube sign-in button was not found"
+    fi
+
+    # This build is newer than any release, so the check finds nothing to install.
+    if tap "update_check"; then
+      sleep 8
+      adb exec-out screencap -p > screenshot-settings.png
+      if [ -n "$(find_node "update_latest")" ]; then
+        echo "The update check reached GitHub: this is the latest version"
+      else
+        echo "::warning::The update check did not answer; see screenshot-settings.png"
+      fi
+    else
+      echo "::warning::The update check button was not found"
+    fi
     adb shell input keyevent KEYCODE_BACK
     sleep 2
   else
-    echo "::warning::The YouTube sign-in button was not found"
-  fi
-
-  # This build is newer than any release, so the check finds nothing to install.
-  if tap "update_check"; then
-    sleep 8
-    if [ -n "$(find_node "update_latest")" ]; then
-      echo "The update check reached GitHub: this is the latest version"
-    else
-      adb exec-out screencap -p > screenshot-update-check.png
-      echo "::warning::The update check did not answer; see screenshot-update-check.png"
-    fi
-  else
-    echo "::warning::The update check button was not found"
+    adb exec-out screencap -p > screenshot-settings.png
+    echo "::error::The settings button was not found in the Library"
+    STATUS=1
   fi
 
   # Yandex Music serves only Russia and nearby countries, so from here the

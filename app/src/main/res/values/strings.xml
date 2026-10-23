@@ -24,7 +24,6 @@
     <string name="library_empty_playlists">Bring a playlist over from Yandex Music: its tracks are found on YouTube Music</string>
     <string name="library_recent">History</string>
     <string name="library_empty_liked">Tap ♡ on a track to keep it here and listen without a network</string>
-    <string name="offline_count">%d offline</string>
     <string name="download">Download</string>
     <string name="download_remove">Remove download</string>
     <string name="downloads_failed">Not downloaded: %d</string>
@@ -33,7 +32,6 @@
         <item quantity="one">Downloading for offline: %d track left</item>
         <item quantity="other">Downloading for offline: %d tracks left</item>
     </plurals>
-    <string name="playlist_download">Download for offline</string>
     <string name="playlist_download_stop">Remove downloads</string>
     <string name="playlist_download_title">Download \"%s\"?</string>
     <string name="playlist_download_text">%1$s, about %2$s. They download one at a time, in the background too; the notification shows how far it got. Tracks found later download as well.</string>
@@ -85,7 +83,7 @@
     <string name="import_error_unexpected">Yandex Music gave an unexpected answer (%s)</string>
     <string name="playlist_from_yandex">Yandex Music</string>
     <string name="playlist_searching">Looking on YouTube and SoundCloud: %1$d of %2$d</string>
-    <string name="playlist_waiting">YouTube and SoundCloud can\'t be reached. Turn the VPN on or connect your server in Library, and the search carries on by itself.</string>
+    <string name="playlist_waiting">YouTube and SoundCloud can\'t be reached. Turn the VPN on or connect your server in Settings, and the search carries on by itself.</string>
     <string name="playlist_missing">Not found on YouTube or SoundCloud: %d</string>
     <string name="playlist_missing_short">not found: %d</string>
     <string name="playlist_missing_hint">Try finding these yourself in Search.</string>
@@ -135,6 +133,13 @@
     <string name="update_done_text">Tap to open</string>
     <string name="updates_channel">Updates</string>
 
+    <string name="offline_all_ready">All tracks play offline</string>
+    <string name="offline_download_rest">Download for offline: %1$d of %2$d ready</string>
+    <string name="settings">Settings</string>
+    <string name="settings_youtube">YouTube</string>
+    <string name="settings_connection">Connection</string>
+    <string name="settings_app">App</string>
+
     <string name="now_playing">Now playing</string>
     <string name="queue">Queue</string>
     <string name="up_next">Up next</string>
@@ -148,12 +153,12 @@
     <string name="remove_from_queue">Remove from queue</string>
 
     <string name="error_not_available">This track is not available</string>
-    <string name="error_age_restricted">This track is age-restricted. Sign in to YouTube in Library to play it</string>
+    <string name="error_age_restricted">This track is age-restricted. Sign in to YouTube in Settings to play it</string>
     <string name="error_age_restricted_signed_in">This track is age-restricted, and YouTube did not play it for this account</string>
     <string name="error_premium">Only available with a subscription</string>
     <string name="error_region">Not available in your region</string>
     <string name="error_blocked">The service refused the request, try again later</string>
-    <string name="error_blocked_sign_in">The service refused the request. Signing in to YouTube in Library may help</string>
+    <string name="error_blocked_sign_in">The service refused the request. Signing in to YouTube in Settings may help</string>
     <string name="error_no_audio">This track has no audio the player can use</string>
     <string name="error_network">No connection</string>
     <string name="error_unknown">Couldn\'t play the track</string>

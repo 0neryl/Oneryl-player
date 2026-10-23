@@ -20,7 +20,6 @@
     <string name="library_empty_playlists">Перенесите плейлист из Яндекс Музыки: его треки найдутся на YouTube Music</string>
     <string name="library_recent">История</string>
     <string name="library_empty_liked">Нажмите ♡ у трека, чтобы сохранить его сюда и слушать без сети</string>
-    <string name="offline_count">без сети: %d</string>
     <string name="download">Скачать</string>
     <string name="download_remove">Убрать из загрузок</string>
     <string name="downloads_failed">Не скачалось: %d</string>
@@ -31,7 +30,6 @@
         <item quantity="many">Скачиваю для офлайна: осталось %d треков</item>
         <item quantity="other">Скачиваю для офлайна: осталось %d трека</item>
     </plurals>
-    <string name="playlist_download">Скачать для офлайна</string>
     <string name="playlist_download_stop">Не хранить без сети</string>
     <string name="playlist_download_title">Скачать «%s»?</string>
     <string name="playlist_download_text">%1$s, около %2$s. Треки качаются по одному, в том числе в фоне, ход загрузки виден в уведомлении. Треки, которые найдутся позже, тоже скачаются.</string>
@@ -83,7 +81,7 @@
     <string name="import_error_unexpected">Яндекс Музыка ответила неожиданно (%s)</string>
     <string name="playlist_from_yandex">Яндекс Музыка</string>
     <string name="playlist_searching">Ищу на YouTube и SoundCloud: %1$d из %2$d</string>
-    <string name="playlist_waiting">YouTube и SoundCloud не отвечают. Включите VPN или подключите свой сервер в Библиотеке, и поиск продолжится сам.</string>
+    <string name="playlist_waiting">YouTube и SoundCloud не отвечают. Включите VPN или подключите свой сервер в Настройках, и поиск продолжится сам.</string>
     <string name="playlist_missing">Не нашлось ни на YouTube, ни на SoundCloud: %d</string>
     <string name="playlist_missing_short">не нашлось: %d</string>
     <string name="playlist_missing_hint">Их можно поискать вручную в «Поиске».</string>
@@ -135,6 +133,13 @@
     <string name="update_done_text">Нажмите, чтобы открыть</string>
     <string name="updates_channel">Обновления</string>
 
+    <string name="offline_all_ready">Все треки доступны без сети</string>
+    <string name="offline_download_rest">Скачать для прослушивания без сети: готово %1$d из %2$d</string>
+    <string name="settings">Настройки</string>
+    <string name="settings_youtube">YouTube</string>
+    <string name="settings_connection">Соединение</string>
+    <string name="settings_app">Приложение</string>
+
     <string name="now_playing">Сейчас играет</string>
     <string name="queue">Очередь</string>
     <string name="up_next">Далее</string>
@@ -148,12 +153,12 @@
     <string name="remove_from_queue">Убрать из очереди</string>
 
     <string name="error_not_available">Этот трек недоступен</string>
-    <string name="error_age_restricted">У трека возрастное ограничение. Чтобы его слушать, войдите в YouTube в Библиотеке</string>
+    <string name="error_age_restricted">У трека возрастное ограничение. Чтобы его слушать, войдите в YouTube в Настройках</string>
     <string name="error_age_restricted_signed_in">У трека возрастное ограничение, и YouTube не включил его для этого аккаунта</string>
     <string name="error_premium">Доступно только по подписке</string>
     <string name="error_region">Недоступно в вашем регионе</string>
     <string name="error_blocked">Сервис отклонил запрос, попробуйте позже</string>
-    <string name="error_blocked_sign_in">Сервис отклонил запрос. Может помочь вход в YouTube в Библиотеке</string>
+    <string name="error_blocked_sign_in">Сервис отклонил запрос. Может помочь вход в YouTube в Настройках</string>
     <string name="error_no_audio">У трека нет звука, который может воспроизвести плеер</string>
     <string name="error_network">Нет подключения к сети</string>
     <string name="error_unknown">Не удалось воспроизвести трек</string>

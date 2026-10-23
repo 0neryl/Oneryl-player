@@ -99,6 +99,7 @@ fun OnerylApp(
     var playerOpen by rememberSaveable { mutableStateOf(false) }
     var signingIn by rememberSaveable { mutableStateOf(false) }
     var openPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var artist by rememberSaveable(stateSaver = ArtistRequestSaver) { mutableStateOf<ArtistRequest?>(null) }
     // The artist whose service is being asked for.
     var artistChoice by rememberSaveable(stateSaver = ArtistRequestSaver) { mutableStateOf<ArtistRequest?>(null) }
@@ -135,15 +136,18 @@ fun OnerylApp(
     LaunchedEffect(current == null) {
         if (current == null) playerOpen = false
     }
-    // Back closes the topmost thing first: sign-in, the player, an artist, an open playlist, then the tab.
+    // Back closes the topmost thing first: sign-in, the player, an artist, the
+    // settings or an open playlist, then the tab.
     val artistShown = artist != null
-    val playlistShown = !artistShown && tab == Tab.LIBRARY && openPlaylistId != null
+    val settingsShown = !artistShown && tab == Tab.LIBRARY && settingsOpen
+    val playlistShown = !artistShown && !settingsShown && tab == Tab.LIBRARY && openPlaylistId != null
     val overlay = signingIn || playerOpen
     BackHandler(enabled = signingIn) { signingIn = false }
     BackHandler(enabled = !signingIn && playerOpen) { playerOpen = false }
     BackHandler(enabled = !overlay && artistShown) { artist = null }
+    BackHandler(enabled = !overlay && settingsShown) { settingsOpen = false }
     BackHandler(enabled = !overlay && playlistShown) { openPlaylistId = null }
-    BackHandler(enabled = !overlay && !artistShown && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
+    BackHandler(enabled = !overlay && !artistShown && !settingsShown && !playlistShown && tab != Tab.HOME) { tab = Tab.HOME }
 
     CompositionLocalProvider(
         LocalTrackUi provides TrackUi(current?.key, player.isPlaying, likedKeys, actions, offlineStates, pinnedKeys),
@@ -219,6 +223,8 @@ fun OnerylApp(
                                         updater = updater,
                                         onRetryDownloads = offline::retryFailed,
                                         contentPadding = padding,
+                                        settingsOpen = settingsOpen,
+                                        onOpenSettings = { settingsOpen = it },
                                         openPlaylistId = openPlaylistId,
                                         onOpenPlaylist = { openPlaylistId = it },
                                         onPlay = connection::play,
