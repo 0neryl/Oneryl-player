@@ -173,9 +173,9 @@ elif play_first_result "SoundCloud" "lofi"; then
   # Liking the track downloads it; the offline check at the end plays it back.
   tap "Like"
 
-  # Tapping the artist of a result asks for the service and opens their page;
+  # The artist's name in the player asks for the service and opens their page;
   # on SoundCloud that is the uploader of the track, without a search.
-  if tap "track_artist" && tap "artist_on_soundcloud"; then
+  if tap "mini_player" && tap "player_artist" && tap "artist_on_soundcloud"; then
     sleep 8
     adb exec-out screencap -p > screenshot-artist.png
     if [ -n "$(find_node "artist_screen")" ] && [ -n "$(find_node "track_row")" ]; then
@@ -188,7 +188,7 @@ elif play_first_result "SoundCloud" "lofi"; then
     sleep 2
   else
     adb exec-out screencap -p > screenshot-artist.png
-    echo "::error::Tapping the artist did not offer the services"
+    echo "::error::Tapping the artist in the player did not offer the services"
     STATUS=1
   fi
 

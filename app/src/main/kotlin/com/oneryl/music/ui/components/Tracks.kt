@@ -130,8 +130,9 @@ val MusicSource.label: String
     }
 
 /**
- * One line of a track list: tap plays [tracks] from [index], tapping the
- * artist opens them, the menu holds the rest.
+ * One line of a track list: tap plays [tracks] from [index], the menu holds
+ * the rest, the artist among it. The artist's name is not a button of its
+ * own here: it takes half the row, so taps meant to play would open it.
  */
 @Composable
 fun TrackRow(
@@ -173,28 +174,13 @@ fun TrackRow(
                     Spacer(Modifier.width(4.dp))
                 }
                 OfflineMark(ui.offline[track.key])
-                if (track.artist.isNotEmpty()) {
-                    Text(
-                        track.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .clickable { ui.actions?.openArtist(track) }
-                            .testTag("track_artist"),
-                    )
-                }
-                val duration = formatDuration(track.durationSeconds)
-                if (duration.isNotEmpty()) {
-                    Text(
-                        if (track.artist.isNotEmpty()) " • $duration" else duration,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
-                }
+                Text(
+                    listOf(track.artist, formatDuration(track.durationSeconds)).filter { it.isNotEmpty() }.joinToString(" • "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         if (trailing != null) trailing() else TrackMenu(track)
